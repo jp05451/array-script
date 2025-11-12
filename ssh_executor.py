@@ -140,6 +140,30 @@ class SSHExecutor:
 
             return output, error, exit_status
 
+    def execute_command(self, command):
+        """
+        執行單一指令
+
+        Args:
+            command: 要執行的指令
+
+        Returns:
+            tuple: (output, error, exit_status)
+        """
+        try:
+            if not self.ssh_client:
+                raise Exception("尚未建立 SSH 連接")
+
+            stdin, stdout, stderr = self.ssh_client.exec_command(command)
+
+            output = stdout.read().decode('utf-8')
+            error = stderr.read().decode('utf-8')
+            exit_status = stdout.channel.recv_exit_status()
+
+            return output, error, exit_status
+        except Exception as e:
+            print(f"執行指令時發生錯誤：{e}")
+    
     def close(self):
         """關閉 SSH 連接"""
         if self.ssh_client:
