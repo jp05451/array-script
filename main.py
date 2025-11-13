@@ -1,7 +1,11 @@
 import argparse
+import paramiko
 from ssh_executor import SSHExecutor
 from config import Config
 
+def load_yaml_config(yaml_path):
+    """從 YAML 檔案載入配置"""
+    return Config.from_yaml(yaml_path)
 
 def main():
     """主程式"""
@@ -24,11 +28,28 @@ def main():
         action='store_true',
         help='即時輸出執行結果'
     )
-
+    parser.add_argument(
+        '-c', '--config',
+        type=str,
+        default='config.yaml',
+        help='指定 YAML 配置檔案路徑 (預設: config.yaml)'
+    )
+    
     args = parser.parse_args()
 
     # 讀取配置
-    config = Config()
+    if args.config:
+        # 從 YAML 載入配置
+        config = load_yaml_config(args.config)
+        print(f"已載入配置檔案: {args.config}")
+        if args.verbose:
+            print(f"  APV IP: {config.test.apv_management_ip}:{config.test.apv_managment_port}")
+            print(f"  Traffic Generator IP: {config.test.traffic_generator.management_ip}:{config.test.traffic_generator.management_port}")
+            print(f"  Client IP: {config.test.traffic_generator.pairs.client_ip}")
+            print(f"  Server IP: {config.test.traffic_generator.pairs.server_ip}")
+    else:
+        # 使用預設配置
+        config = Config()
 
     # 建立 SSH 執行器
     executor = SSHExecutor(config)
