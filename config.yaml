@@ -1,0 +1,18 @@
+test:
+apv_management_ip: 140.118.109.106
+apv_managment_port: 6666
+traffic_generator:
+  management_ip: 140.118.109.106
+  management_port: 6667
+  pairs:
+    - client_nic_pci: 0000:b6:00.0
+    - client_ip: 10.10.11.1
+    - source_ip_nums: 60
+    - client_gw: 10.10.11.100
+
+    - server_nic_pci: 0000:b6:00.1
+    - server_ip: 10.10.12.1
+    - server_gw: 10.10.12.100
+    - listen_start_port: 6769
+    - slb_port_nums: 6768
+    - protocol: tcp
