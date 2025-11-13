@@ -265,7 +265,7 @@ class SSHExecutor:
         """
         self.connection_manager = SSHConnectionManager(
             host=config.HOST,
-            port=config.PORT,
+            port=getattr(config, "PORT", 22),
             user=config.USER,
             password=config.PASSWORD
         )
