@@ -23,6 +23,8 @@ class TrafficGenerator:
     """流量產生器配置"""
     management_ip: str = ""
     management_port: int = 0
+    username: str = ""
+    password: str = ""
     pairs: TrafficGeneratorPair = field(default_factory=TrafficGeneratorPair)
 
 
@@ -38,15 +40,6 @@ class TestConfig:
 class Config:
     """主配置類別"""
     test: TestConfig = field(default_factory=TestConfig)
-
-    # 保留舊的連線資訊作為預設值
-    HOST: str = '192.168.1.207'
-    USER: str = 'root'
-    PASSWORD: str = 'array'
-
-    APV_HOST: str = '192.168.1.247'
-    APV_USER: str = 'array'
-    APV_PASSWORD: str = 'aclab@6768'
 
     @classmethod
     def from_yaml(cls, yaml_path: str) -> 'Config':
@@ -93,6 +86,8 @@ class Config:
         traffic_generator = TrafficGenerator(
             management_ip=tg_data.get('management_ip', ''),
             management_port=tg_data.get('management_port', 22),
+            username=tg_data.get('username', ''),
+            password=tg_data.get('password', ''),
             pairs=pair
         )
 
