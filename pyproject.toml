@@ -6,4 +6,5 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "paramiko>=4.0.0",
+    "pyyaml>=6.0.3",
 ]
