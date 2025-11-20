@@ -48,11 +48,13 @@ def main():
             print(f"  Client IP: {config.test.traffic_generator.pairs.client_ip}")
             print(f"  Server IP: {config.test.traffic_generator.pairs.server_ip}")
     else:
-        # 使用預設配置
-        config = Config()
+        exit("錯誤：未指定配置檔案")
 
     # 建立 SSH 執行器
-    executor = SSHExecutor(config)
+    executor = SSHExecutor(config.test.traffic_generator.management_ip,
+                           config.test.traffic_generator.management_port,
+                           config.test.traffic_generator.username,
+                           config.test.traffic_generator.password)
 
     try:
         # 連接到遠端主機
