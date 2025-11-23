@@ -89,43 +89,6 @@ class ScriptReader:
             return f.read()
 
 
-class OutputHandler:
-    """輸出處理器"""
-
-    @staticmethod
-    def print_header(script_path: str) -> None:
-        """打印執行頭部信息"""
-        print(f"\n開始執行 {script_path} 中的指令...\n")
-        print("-" * 50)
-
-    @staticmethod
-    def print_footer(interrupted: bool = False) -> None:
-        """打印執行尾部信息"""
-        print("-" * 50)
-        if interrupted:
-            print("\n程式已被使用者中斷")
-        else:
-            print("\n執行完成")
-
-    @staticmethod
-    def print_exit_status(exit_status: int) -> None:
-        """打印退出狀態"""
-        print(f"\n執行完成，退出狀態碼：{exit_status}")
-
-    @staticmethod
-    def print_output(output: str, prefix: str = "執行結果") -> None:
-        """打印標準輸出"""
-        if output:
-            print(f"{prefix}：")
-            print(output)
-
-    @staticmethod
-    def print_error(error: str) -> None:
-        """打印錯誤輸出"""
-        if error:
-            print(f"\n錯誤輸出：\n{error}")
-
-
 class SignalHandler:
     """信號處理器"""
 
