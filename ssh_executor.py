@@ -349,10 +349,13 @@ class SSHExecutor:
 
 def main():
     """主程式"""
-    parser = argparse.ArgumentParser(description='透過 SSH 執行遠端 shell 腳本')
-    parser.add_argument('script', help='要執行的 shell 腳本路徑')
-    parser.add_argument('--real-time', action='store_true',
-                       help='即時顯示執行輸出（預設：等待執行完成後顯示）')
+    parser = argparse.ArgumentParser(description="透過 SSH 執行遠端 shell 腳本")
+    parser.add_argument("script", help="要執行的 shell 腳本路徑")
+    parser.add_argument(
+        "--real-time",
+        action="store_true",
+        help="即時顯示執行輸出（預設：等待執行完成後顯示）",
+    )
     args = parser.parse_args()
 
     # 載入配置
