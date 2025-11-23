@@ -9,14 +9,35 @@ test:
     username: root
     password: array
     pairs:
-      - client_nic_pci: 0000:b6:00.0
-      - client_ip: 10.10.11.1
-      - source_ip_nums: 60
-      - client_gw: 10.10.11.100
+      # client config
+      client:
+        client_nic_pci: 0000:b6:00.0
+        client_ip: 10.10.11.1
+        source_ip_nums: 60
+        client_gw: 10.10.11.100
+        client_duration: 3m
+        client_cpu_core: 6
+        tx_burst: 1024
+        launch_num: 100
+        cc: 2k
+        keepalive: 1us
+        rss: true
+        socket_mem: 1024
 
-      - server_nic_pci: 0000:b6:00.1
-      - server_ip: 10.10.12.1
-      - server_gw: 10.10.12.100
-      - listen_start_port: 6769
-      - slb_port_nums: 6768
-      - protocol: tcp
+      # server config
+      server:
+        server_nic_pci: 0000:b6:00.1
+        server_ip: 10.10.12.1
+        server_gw: 10.10.12.100
+        server_duration: 3m
+        server_cpu_core: 14
+        tx_burst: 1024
+        keepalive: 1us
+        rss: true
+        socket_mem: 1024
+
+      # shared config
+      payload_size: 1024
+      listen_start_port: 6769
+      listen_port_nums: 1
+      protocol: tcp
