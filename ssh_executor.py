@@ -7,6 +7,7 @@ import signal
 import sys
 from typing import Tuple, Optional
 from config import Config
+from output_handler import OutputHandler
 
 
 class SSHConnectionManager:
@@ -69,6 +70,7 @@ class SSHConnectionManager:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """支持 with 語句"""
         self.close()
+        return False
 
 
 class ScriptReader:
@@ -129,7 +131,7 @@ class SignalHandler:
 class RealTimeStreamReader:
     """實時流讀取器"""
 
-    def __init__(self, stdout, stderr, signal_handler: SignalHandler):
+    def __init__(self, stdout, stderr, signal_handler: SignalHandler, output_handler: OutputHandler):
         """
         初始化實時流讀取器
 
@@ -137,10 +139,12 @@ class RealTimeStreamReader:
             stdout: 標準輸出流
             stderr: 標準錯誤流
             signal_handler: 信號處理器
+            output_handler: 輸出處理器
         """
         self.stdout = stdout
         self.stderr = stderr
         self.signal_handler = signal_handler
+        self.output_handler = output_handler
 
     def read(self) -> None:
         """讀取並實時打印輸出"""
@@ -152,7 +156,7 @@ class RealTimeStreamReader:
                     break
                 if self.stdout.channel.recv_ready():
                     output = self.stdout.channel.recv(1024).decode("utf-8")
-                    print(output, end="", flush=True)
+                    self.output_handler.write(output, end="", flush=True)
 
             # 讀取剩餘輸出
             if not self.signal_handler.interrupted:
@@ -161,29 +165,31 @@ class RealTimeStreamReader:
             # 讀取錯誤輸出
             error = self.stderr.read().decode("utf-8")
             if error:
-                OutputHandler.print_error(error)
+                self.output_handler.print_error(error)
 
         except Exception as e:
-            print(f"\n執行過程中發生錯誤：{e}")
+            self.output_handler.write(f"\n執行過程中發生錯誤：{e}")
 
     def _read_remaining(self) -> None:
         """讀取剩餘的輸出"""
         remaining = self.stdout.read().decode("utf-8")
         if remaining:
-            print(remaining, end="", flush=True)
+            self.output_handler.write(remaining, end="", flush=True)
 
 
 class CommandExecutor:
     """命令執行器"""
 
-    def __init__(self, ssh_client: paramiko.SSHClient):
+    def __init__(self, ssh_client: paramiko.SSHClient, output_handler: OutputHandler):
         """
         初始化命令執行器
 
         Args:
             ssh_client: SSH 客戶端
+            output_handler: 輸出處理器
         """
         self.ssh_client = ssh_client
+        self.output_handler = output_handler
 
     def execute_simple(self, command: str) -> Tuple[str, str, int]:
         """
@@ -215,21 +221,25 @@ class CommandExecutor:
         signal_handler = SignalHandler()
         signal_handler.setup(stdin)
 
-        reader = RealTimeStreamReader(stdout, stderr, signal_handler)
+        reader = RealTimeStreamReader(stdout, stderr, signal_handler, self.output_handler)
         reader.read()
 
-        OutputHandler.print_footer(signal_handler.interrupted)
+        self.output_handler.print_footer(signal_handler.interrupted)
 
 
 class SSHExecutor:
     """SSH 執行器類別（高層封裝）"""
 
-    def __init__(self, host: str, port: int, user: str, password: str):
+    def __init__(self, host: str, port: int, user: str, password: str, output_path: Optional[str] = None):
         """
         初始化 SSH 執行器
 
         Args:
-            config: Config 物件，包含連接資訊
+            host: 主機地址
+            port: 端口號
+            user: 用戶名
+            password: 密碼
+            output_path: 輸出檔案路徑，若為 None 則輸出到 stdout
         """
         self.connection_manager = SSHConnectionManager(
             host=host,
@@ -237,12 +247,13 @@ class SSHExecutor:
             user=user,
             password=password,
         )
+        self.output_handler = OutputHandler(output_path)
         self._executor: Optional[CommandExecutor] = None
 
     def connect(self) -> None:
         """建立 SSH 連接"""
         self.connection_manager.connect()
-        self._executor = CommandExecutor(self.connection_manager.get_client())
+        self._executor = CommandExecutor(self.connection_manager.get_client(), self.output_handler)
 
     def execute_script(
         self, script_path: str, real_time: bool = False
@@ -261,7 +272,7 @@ class SSHExecutor:
             raise Exception("尚未建立 SSH 連接")
 
         commands = ScriptReader.read_script(script_path)
-        OutputHandler.print_header(script_path)
+        self.output_handler.print_header(script_path)
 
         if real_time:
             self._executor.execute_realtime(commands)
@@ -269,10 +280,10 @@ class SSHExecutor:
         else:
             output, error, exit_status = self._executor.execute_simple(commands)
 
-            OutputHandler.print_output(output)
-            OutputHandler.print_error(error)
-            OutputHandler.print_footer()
-            OutputHandler.print_exit_status(exit_status)
+            self.output_handler.print_output(output)
+            self.output_handler.print_error(error)
+            self.output_handler.print_footer()
+            self.output_handler.print_exit_status(exit_status)
 
             return output, error, exit_status
 
@@ -298,6 +309,7 @@ class SSHExecutor:
     def close(self) -> None:
         """關閉 SSH 連接"""
         self.connection_manager.close()
+        self.output_handler.close()
         self._executor = None
 
     def __enter__(self):
@@ -308,6 +320,7 @@ class SSHExecutor:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """支持 with 語句"""
         self.close()
+        return False
 
 
 def main():
