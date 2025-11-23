@@ -7,8 +7,9 @@ def load_yaml_config(yaml_path):
     """從 YAML 檔案載入配置"""
     return Config.from_yaml(yaml_path)
 
-def main():
-    """主程式"""
+
+def parse_arguments():
+    """解析命令列參數"""
     parser = argparse.ArgumentParser(
         description='透過 SSH 連接到遠端機器並執行指定的 shell 腳本'
     )
@@ -34,8 +35,13 @@ def main():
         default='config.yaml',
         help='指定 YAML 配置檔案路徑 (預設: config.yaml)'
     )
-    
-    args = parser.parse_args()
+
+    return parser.parse_args()
+
+
+def main():
+    """主程式"""
+    args = parse_arguments()
 
     # 讀取配置
     if args.config:
