@@ -85,7 +85,7 @@ class ScriptReader:
         Returns:
             腳本內容
         """
-        with open(script_path, 'r', encoding='utf-8') as f:
+        with open(script_path, "r", encoding="utf-8") as f:
             return f.read()
 
 
@@ -140,10 +140,11 @@ class SignalHandler:
         Args:
             stdin: SSH 標準輸入流
         """
+
         def handler(sig, frame):
             print("\n\n收到中斷信號，正在停止遠端程式...")
             try:
-                stdin.write('\x03')
+                stdin.write("\x03")
                 stdin.flush()
             except Exception:
                 pass
@@ -152,6 +153,10 @@ class SignalHandler:
         self._original_handler = signal.signal(signal.SIGINT, handler)
         print("提示: 按 Ctrl+C 可停止程式執行\n")
 
+    def stop(self) -> None:
+        """標記為已中斷"""
+        self.interrupted = True
+    
     def restore(self) -> None:
         """恢復原始信號處理器"""
         if self._original_handler:
@@ -183,15 +188,15 @@ class RealTimeStreamReader:
                     self._read_remaining()
                     break
                 if self.stdout.channel.recv_ready():
-                    output = self.stdout.channel.recv(1024).decode('utf-8')
-                    print(output, end='', flush=True)
+                    output = self.stdout.channel.recv(1024).decode("utf-8")
+                    print(output, end="", flush=True)
 
             # 讀取剩餘輸出
             if not self.signal_handler.interrupted:
                 self._read_remaining()
 
             # 讀取錯誤輸出
-            error = self.stderr.read().decode('utf-8')
+            error = self.stderr.read().decode("utf-8")
             if error:
                 OutputHandler.print_error(error)
 
@@ -200,9 +205,9 @@ class RealTimeStreamReader:
 
     def _read_remaining(self) -> None:
         """讀取剩餘的輸出"""
-        remaining = self.stdout.read().decode('utf-8')
+        remaining = self.stdout.read().decode("utf-8")
         if remaining:
-            print(remaining, end='', flush=True)
+            print(remaining, end="", flush=True)
 
 
 class CommandExecutor:
@@ -229,8 +234,8 @@ class CommandExecutor:
         """
         stdin, stdout, stderr = self.ssh_client.exec_command(command)
 
-        output = stdout.read().decode('utf-8')
-        error = stderr.read().decode('utf-8')
+        output = stdout.read().decode("utf-8")
+        error = stderr.read().decode("utf-8")
         exit_status = stdout.channel.recv_exit_status()
 
         return output, error, exit_status
@@ -256,7 +261,7 @@ class CommandExecutor:
 class SSHExecutor:
     """SSH 執行器類別（高層封裝）"""
 
-    def __init__(self, config: Config):
+    def __init__(self, host: str, port: int, user: str, password: str):
         """
         初始化 SSH 執行器
 
@@ -264,10 +269,10 @@ class SSHExecutor:
             config: Config 物件，包含連接資訊
         """
         self.connection_manager = SSHConnectionManager(
-            host=config.HOST,
-            port=getattr(config, "PORT", 22),
-            user=config.USER,
-            password=config.PASSWORD
+            host=host,
+            port=port,
+            user=user,
+            password=password,
         )
         self._executor: Optional[CommandExecutor] = None
 
@@ -276,7 +281,9 @@ class SSHExecutor:
         self.connection_manager.connect()
         self._executor = CommandExecutor(self.connection_manager.get_client())
 
-    def execute_script(self, script_path: str, real_time: bool = False) -> Optional[Tuple[str, str, int]]:
+    def execute_script(
+        self, script_path: str, real_time: bool = False
+    ) -> Optional[Tuple[str, str, int]]:
         """
         執行指定的 shell 腳本
 
