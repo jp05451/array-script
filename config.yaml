@@ -8,6 +8,8 @@ test:
   # 流量產生器配置
   traffic_generator:
     # 管理介面連線資訊
+    dperf_path: ~/dperf
+    dpdk_path: ~/dpdk
     management_ip: 140.118.109.106
     management_port: 6667
     username: root
