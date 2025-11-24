@@ -29,7 +29,9 @@ test:
         client_gw: 10.10.11.100
         
         # 測試持續時間 (支援格式: s=秒, m=分鐘, h=小時)
+        # 不知道為什麼 client都會比設定的多33秒才結束
         client_duration: 3m
+
         
         # 使用的 CPU 核心數量 (影響並行處理能力)
         client_cpu_core: 6
@@ -64,6 +66,7 @@ test:
         server_gw: 10.10.12.100
         
         # 測試持續時間
+        # server 會比設定的多3秒才結束
         server_duration: 3m
         
         # 使用的 CPU 核心數量
