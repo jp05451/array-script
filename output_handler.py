@@ -38,11 +38,11 @@ class OutputHandler:
         """
         if self._file_handle:
             self._file_handle.write(message + end)
-            print(message, end=end, flush=flush)
+            print(f"OUTPUT: {message}", end=end, flush=flush)
             if flush:
                 self._file_handle.flush()
         else:
-            print(message, end=end, flush=flush)
+            print(f"STDOUT: {message}", end=end, flush=flush)
 
     def print_header(self, script_path: str) -> None:
         """打印執行頭部信息"""
