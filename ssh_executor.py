@@ -40,7 +40,7 @@ class SSHConnectionManager:
             hostname=self.host,
             port=self.port,
             username=self.user,
-            password=self.password
+            password=self.password,
         )
 
         print("連接成功！")
@@ -121,7 +121,7 @@ class SignalHandler:
     def stop(self) -> None:
         """標記為已中斷"""
         self.interrupted = True
-    
+
     def restore(self) -> None:
         """恢復原始信號處理器"""
         if self._original_handler:
@@ -131,7 +131,13 @@ class SignalHandler:
 class RealTimeStreamReader:
     """實時流讀取器"""
 
-    def __init__(self, stdout, stderr, signal_handler: SignalHandler, output_handler: OutputHandler):
+    def __init__(
+        self,
+        stdout,
+        stderr,
+        signal_handler: SignalHandler,
+        output_handler: OutputHandler,
+    ):
         """
         初始化實時流讀取器
 
@@ -221,7 +227,9 @@ class CommandExecutor:
         signal_handler = SignalHandler()
         signal_handler.setup(stdin)
 
-        reader = RealTimeStreamReader(stdout, stderr, signal_handler, self.output_handler)
+        reader = RealTimeStreamReader(
+            stdout, stderr, signal_handler, self.output_handler
+        )
         reader.read()
 
         self.output_handler.print_footer(signal_handler.interrupted)
@@ -230,7 +238,14 @@ class CommandExecutor:
 class SSHExecutor:
     """SSH 執行器類別（高層封裝）"""
 
-    def __init__(self, host: str, port: int, user: str, password: str, output_path: Optional[str] = None):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        user: str,
+        password: str,
+        output_path: Optional[str] = None,
+    ):
         """
         初始化 SSH 執行器
 
@@ -253,7 +268,9 @@ class SSHExecutor:
     def connect(self) -> None:
         """建立 SSH 連接"""
         self.connection_manager.connect()
-        self._executor = CommandExecutor(self.connection_manager.get_client(), self.output_handler)
+        self._executor = CommandExecutor(
+            self.connection_manager.get_client(), self.output_handler
+        )
 
     def execute_script(
         self, script_path: str, real_time: bool = False
@@ -287,7 +304,9 @@ class SSHExecutor:
 
             return output, error, exit_status
 
-    def execute_command(self, command: str) -> Optional[Tuple[str, str, int]]:
+    def execute_command(
+        self, command: str, real_time: bool = False
+    ) -> Optional[Tuple[str, str, int]]:
         """
         執行單一指令
 
@@ -297,14 +316,14 @@ class SSHExecutor:
         Returns:
             (output, error, exit_status) 元組，發生錯誤時返回 None
         """
-        try:
-            if not self._executor:
-                raise Exception("尚未建立 SSH 連接")
-
-            return self._executor.execute_simple(command)
-        except Exception as e:
-            print(f"執行指令時發生錯誤：{e}")
+        if real_time:
+            self._executor.execute_realtime(command)
             return None
+        else:
+            output, error, exit_status = self._executor.execute_simple(command)
+
+            self.output_handler.print_output(output)
+            return output, error, exit_status
 
     def close(self) -> None:
         """關閉 SSH 連接"""
