@@ -20,6 +20,8 @@ if __name__ == "__main__":
     print(f"Management Port: {tg.management_port}")
     print(f"Username: {tg.username}")
     print(f"Password: {tg.password}")
+    print(f"DPDK Path: {tg.dpdk_path}")
+    print(f"Dperf Path: {tg.dperf_path}")
 
     print("\n=== Client 配置 ===")
     client = tg.pairs.client

@@ -59,6 +59,8 @@ class TrafficGenerator:
     management_port: int = 0
     username: str = ""
     password: str = ""
+    dpdk_path: str = ""
+    dperf_path: str = ""
     pairs: TrafficGeneratorPair = field(default_factory=TrafficGeneratorPair)
 
 
@@ -145,6 +147,8 @@ class Config:
             management_port=tg_data.get('management_port', 22),
             username=tg_data.get('username', ''),
             password=tg_data.get('password', ''),
+            dpdk_path=tg_data.get('dpdk_path', ''),
+            dperf_path=tg_data.get('dperf_path', ''),
             pairs=pair
         )
 
@@ -176,6 +180,8 @@ class Config:
                     'management_port': self.test.traffic_generator.management_port,
                     'username': self.test.traffic_generator.username,
                     'password': self.test.traffic_generator.password,
+                    'dpdk_path': self.test.traffic_generator.dpdk_path,
+                    'dperf_path': self.test.traffic_generator.dperf_path,
                     'pairs': {
                         'client': {
                             'client_nic_pci': self.test.traffic_generator.pairs.client.client_nic_pci,
