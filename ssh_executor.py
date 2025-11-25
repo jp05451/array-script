@@ -196,6 +196,8 @@ class CommandExecutor:
         """
         self.ssh_client = ssh_client
         self.output_handler = output_handler
+        self._shell = None
+        self._session_active = False
 
     def execute_simple(self, command: str) -> Tuple[str, str, int]:
         """
@@ -234,6 +236,81 @@ class CommandExecutor:
 
         self.output_handler.print_footer(signal_handler.interrupted)
 
+    def start_session(self) -> None:
+        """
+        啟動持久的互動式 shell session
+        """
+        if self._session_active:
+            return
+
+        self._shell = self.ssh_client.invoke_shell()
+        self._session_active = True
+
+        # 等待初始提示符並清除歡迎訊息
+        import time
+        time.sleep(0.5)
+        if self._shell.recv_ready():
+            self._shell.recv(4096)
+
+    def stop_session(self) -> None:
+        """
+        停止持久的互動式 shell session
+        """
+        if self._shell:
+            self._shell.close()
+            self._shell = None
+            self._session_active = False
+
+    def execute_in_session(self, command: str, timeout: float = 10.0) -> str:
+        """
+        在持久 session 中執行命令
+
+        Args:
+            command: 要執行的命令
+            timeout: 等待輸出的超時時間（秒）
+
+        Returns:
+            命令的輸出
+        """
+        if not self._session_active:
+            raise Exception("Session 尚未啟動，請先呼叫 start_session()")
+
+        import time
+
+        # 發送命令
+        self._shell.send(command + "\n")
+
+        # 等待並收集輸出
+        output = ""
+        start_time = time.time()
+
+        while True:
+            if self._shell.recv_ready():
+                chunk = self._shell.recv(4096).decode('utf-8')
+                output += chunk
+
+                # 如果看到提示符，表示命令執行完成
+                # 這裡使用簡單的換行檢測，可以根據需要調整
+                if chunk.endswith('$ ') or chunk.endswith('# ') or chunk.endswith('> '):
+                    break
+
+            # 檢查超時
+            if time.time() - start_time > timeout:
+                break
+
+            time.sleep(0.1)
+
+        return output
+
+    def is_session_active(self) -> bool:
+        """
+        檢查 session 是否活躍
+
+        Returns:
+            True 如果 session 活躍，否則 False
+        """
+        return self._session_active
+
 
 class SSHExecutor:
     """SSH 執行器類別（高層封裝）"""
@@ -265,12 +342,20 @@ class SSHExecutor:
         self.output_handler = OutputHandler(output_path)
         self._executor: Optional[CommandExecutor] = None
 
-    def connect(self) -> None:
-        """建立 SSH 連接"""
+    def connect(self, persistent_session: bool = False) -> None:
+        """
+        建立 SSH 連接
+
+        Args:
+            persistent_session: 是否啟用持久 session，允許在多個命令之間保持狀態（如：目錄、環境變數等）
+        """
         self.connection_manager.connect()
         self._executor = CommandExecutor(
             self.connection_manager.get_client(), self.output_handler
         )
+        self.persistent_session = persistent_session
+        if persistent_session:
+            self._executor.start_session()
 
     def execute_script(
         self, script_path: str, real_time: bool = False
@@ -327,13 +412,16 @@ class SSHExecutor:
 
     def close(self) -> None:
         """關閉 SSH 連接"""
+        if self._executor and self._executor.is_session_active():
+            self._executor.stop_session()
         self.connection_manager.close()
         self.output_handler.close()
         self._executor = None
 
     def __enter__(self):
         """支持 with 語句"""
-        self.connect()
+        # 默認不啟用 persistent_session，保持向後兼容
+        self.connect(persistent_session=False)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
