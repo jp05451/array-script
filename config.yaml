@@ -20,6 +20,8 @@ test:
       client:
         # 網卡 PCI 位址 (用於 DPDK 綁定)
         client_nic_pci: 0000:b6:00.0
+
+        cllient_nic_name: enp182s0f0
         
         # 客戶端起始 IP 位址
         client_ip: 10.10.11.1
@@ -32,9 +34,8 @@ test:
         
         # 測試持續時間 (支援格式: s=秒, m=分鐘, h=小時)
         # 不知道為什麼 client都會比設定的多33秒才結束
-        client_duration: 3m
+        client_duration: 10s
 
-        
         # 使用的 CPU 核心數量 (影響並行處理能力)
         client_cpu_core: 6
         
@@ -55,11 +56,20 @@ test:
         
         # DPDK 記憶體池大小 (MB)
         socket_mem: 1024
+        
+        virtual_server_ip: 10.10.11.101
+
+        virtual_server_port: 6769
+
+        server_port_nums: 1
 
       # ============ 伺服器端配置 ============
       server:
         # 網卡 PCI 位址 (用於 DPDK 綁定)
         server_nic_pci: 0000:b6:00.1
+
+        cllient_nic_name: enp182s0f1
+
         
         # 伺服器 IP 位址
         server_ip: 10.10.12.1
@@ -69,7 +79,7 @@ test:
         
         # 測試持續時間
         # server 會比設定的多3秒才結束
-        server_duration: 3m
+        server_duration: 1s
         
         # 使用的 CPU 核心數量
         server_cpu_core: 14
@@ -86,15 +96,15 @@ test:
         # DPDK 記憶體池大小 (MB)
         socket_mem: 1024
 
+        # 監聽的起始埠號
+        listend_port: 6768
+
+        # 監聽的埠數量 (可用於分散負載)
+        listend_port_nums: 1
+
       # ============ 共用配置 ============
       # 每個封包的有效負載大小 (bytes)
       payload_size: 1024
-      
-      # 監聽的起始埠號
-      listen_start_port: 6769
-      
-      # 監聽的埠數量 (可用於分散負載)
-      listen_port_nums: 1
-      
-      # 傳輸協定 (tcp/udp)
+            
+      # 傳輸協定 (tcp/udp/http)
       protocol: tcp
