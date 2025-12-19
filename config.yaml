@@ -1,7 +1,9 @@
 test:
   # APV 管理介面配置
-  apv_management_ip: 140.118.109.106
-  apv_managment_port: 6666
+  # apv_management_ip: 140.118.109.106
+  # apv_managment_port: 6666
+  apv_management_ip: 192.168.1.247
+  apv_managment_port: 22
   apv_username: array
   apv_password: aclab@6768
   
@@ -10,101 +12,110 @@ test:
     # 管理介面連線資訊
     dperf_path: ~/dperf
     dpdk_path: ~/dpdk
-    management_ip: 140.118.109.106
-    management_port: 6667
+    management_ip: 192.168.1.207
+    management_port: 22
+    # management_ip: 140.118.109.106
+    # management_port: 6667
     username: root
     password: array
-    
+
+    # Hugepages 配置
+    hugepage_frames: 2  # hugepage 數量 (frame 數)
+    hugepage_size: 1G   # hugepage 大小 (1G 或 2M)
+
     pairs:
-      # ============ 客戶端配置 ============
-      client:
-        # 網卡 PCI 位址 (用於 DPDK 綁定)
-        client_nic_pci: 0000:b6:00.0
+      # ============ 第 1 組 Pair ============
+      - client:
+          # 網卡 PCI 位址 (用於 DPDK 綁定)
+          client_nic_pci: 0000:b6:00.0
 
-        cllient_nic_name: enp182s0f0
-        
-        # 客戶端起始 IP 位址
-        client_ip: 10.10.11.1
-        
-        # 模擬的客戶端 IP 數量 (用於產生多個源 IP)
-        source_ip_nums: 60
-        
-        # 客戶端預設閘道
-        client_gw: 10.10.11.100
-        
-        # 測試持續時間 (支援格式: s=秒, m=分鐘, h=小時)
-        # 不知道為什麼 client都會比設定的多33秒才結束
-        client_duration: 10s
+          client_nic_name: enp182s0f0
 
-        # 使用的 CPU 核心數量 (影響並行處理能力)
-        client_cpu_core: 6
-        
-        # 每次傳送的封包批次大小 (影響傳送效率)
-        tx_burst: 1024
-        
-        # 同時啟動的連線數量
-        launch_num: 100
-        
-        # 併發連線數 (2k = 2000 個併發連線)
-        cc: 2k
-        
-        # TCP keepalive 間隔時間 (us=微秒, ms=毫秒, s=秒)
-        keepalive: 1us
-        
-        # 啟用 RSS (Receive Side Scaling，多佇列網卡負載均衡)
-        rss: true
-        
-        # DPDK 記憶體池大小 (MB)
-        socket_mem: 1024
-        
-        virtual_server_ip: 10.10.11.101
+          # 網卡原生驅動程式 (用於解綁時恢復)
+          client_nic_driver: i40e
 
-        virtual_server_port: 6769
+          # 客戶端起始 IP 位址
+          client_ip: 10.10.11.1
 
-        server_port_nums: 1
+          # 模擬的客戶端 IP 數量 (用於產生多個源 IP)
+          source_ip_nums: 60
 
-      # ============ 伺服器端配置 ============
-      server:
-        # 網卡 PCI 位址 (用於 DPDK 綁定)
-        server_nic_pci: 0000:b6:00.1
+          # 客戶端預設閘道
+          client_gw: 10.10.11.100
 
-        cllient_nic_name: enp182s0f1
+          # 測試持續時間 (支援格式: s=秒, m=分鐘, h=小時)
+          # 不知道為什麼 client都會比設定的多33秒才結束
+          client_duration: 10s
 
-        
-        # 伺服器 IP 位址
-        server_ip: 10.10.12.1
-        
-        # 伺服器預設閘道
-        server_gw: 10.10.12.100
-        
-        # 測試持續時間
-        # server 會比設定的多3秒才結束
-        server_duration: 1s
-        
-        # 使用的 CPU 核心數量
-        server_cpu_core: 14
-        
-        # 每次傳送的封包批次大小
-        tx_burst: 1024
-        
-        # TCP keepalive 間隔時間
-        keepalive: 1us
-        
-        # 啟用 RSS (多佇列網卡負載均衡)
-        rss: true
-        
-        # DPDK 記憶體池大小 (MB)
-        socket_mem: 1024
+          # 使用的 CPU 核心數量 (影響並行處理能力)
+          client_cpu_core: 6
 
-        # 監聽的起始埠號
-        listend_port: 6768
+          # 每次傳送的封包批次大小 (影響傳送效率)
+          tx_burst: 1024
 
-        # 監聽的埠數量 (可用於分散負載)
-        listend_port_nums: 1
+          # 同時啟動的連線數量
+          launch_num: 100
 
-      # ============ 共用配置 ============
-      # 每個封包的有效負載大小 (bytes)
-      payload_size: 1024
-            
-      # 傳輸協定 (tcp/udp/http)
-      protocol: tcp
+          # 併發連線數 (2k = 2000 個併發連線)
+          cc: 2k
+
+          # TCP keepalive 間隔時間 (us=微秒, ms=毫秒, s=秒)
+          keepalive: 1us
+
+          # 啟用 RSS (Receive Side Scaling，多佇列網卡負載均衡)
+          rss: true
+
+          # DPDK 記憶體池大小 (MB)
+          socket_mem: 1024
+
+          virtual_server_ip: 10.10.11.101
+
+          virtual_server_port: 6769
+
+          server_port_nums: 1
+
+        server:
+          # 網卡 PCI 位址 (用於 DPDK 綁定)
+          server_nic_pci: 0000:b6:00.1
+
+          server_nic_name: enp182s0f1
+
+          # 網卡原生驅動程式 (用於解綁時恢復)
+          server_nic_driver: i40e
+
+          # 伺服器 IP 位址
+          server_ip: 10.10.12.1
+
+          # 伺服器預設閘道
+          server_gw: 10.10.12.100
+
+          # 測試持續時間
+          # server 會比設定的多3秒才結束
+          server_duration: 1s
+
+          # 使用的 CPU 核心數量
+          server_cpu_core: 14
+
+          # 每次傳送的封包批次大小
+          tx_burst: 1024
+
+          # TCP keepalive 間隔時間
+          keepalive: 1us
+
+          # 啟用 RSS (多佇列網卡負載均衡)
+          rss: true
+
+          # DPDK 記憶體池大小 (MB)
+          socket_mem: 1024
+
+          # 監聽的起始埠號
+          listend_port: 6768
+
+          # 監聽的埠數量 (可用於分散負載)
+          listend_port_nums: 1
+
+        # 每個封包的有效負載大小 (bytes)
+        payload_size: 1024
+
+        # 傳輸協定 (tcp/udp/http)
+        protocol: tcp

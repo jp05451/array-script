@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any
+from typing import Dict, Any, List
 import yaml
 
 @dataclass
@@ -14,7 +14,8 @@ class Client:
 class ClientConfig:
     """客戶端配置"""
     client_nic_pci: str = ""
-    cllient_nic_name: str = ""
+    client_nic_name: str = ""
+    client_nic_driver: str = "i40e"
     client_ip: str = ""
     source_ip_nums: int = 0
     client_gw: str = ""
@@ -35,7 +36,8 @@ class ClientConfig:
 class ServerConfig:
     """伺服器配置"""
     server_nic_pci: str = ""
-    cllient_nic_name: str = ""
+    server_nic_name: str = ""
+    server_nic_driver: str = "i40e"
     server_ip: str = ""
     server_gw: str = ""
     server_duration: str = ""
@@ -66,7 +68,9 @@ class TrafficGenerator:
     password: str = ""
     dpdk_path: str = ""
     dperf_path: str = ""
-    pairs: TrafficGeneratorPair = field(default_factory=TrafficGeneratorPair)
+    hugepage_frames: int = 2
+    hugepage_size: str = "1G"
+    pairs: List[TrafficGeneratorPair] = field(default_factory=list)
 
 
 @dataclass
@@ -103,53 +107,59 @@ class Config:
 
         # 解析 traffic_generator
         tg_data = test_data.get('traffic_generator', {})
-        pairs_data = tg_data.get('pairs', {})
+        pairs_data_list = tg_data.get('pairs', [])
 
-        # 解析 client 配置
-        client_data = pairs_data.get('client', {})
-        client_config = ClientConfig(
-            client_nic_pci=client_data.get('client_nic_pci', ''),
-            cllient_nic_name=client_data.get('cllient_nic_name', ''),
-            client_ip=client_data.get('client_ip', ''),
-            source_ip_nums=client_data.get('source_ip_nums', 0),
-            client_gw=client_data.get('client_gw', ''),
-            client_duration=client_data.get('client_duration', ''),
-            client_cpu_core=client_data.get('client_cpu_core', 0),
-            tx_burst=client_data.get('tx_burst', 0),
-            launch_num=client_data.get('launch_num', 0),
-            cc=client_data.get('cc', ''),
-            keepalive=client_data.get('keepalive', ''),
-            rss=client_data.get('rss', False),
-            socket_mem=client_data.get('socket_mem', 0),
-            virtual_server_ip=client_data.get('virtual_server_ip', ''),
-            virtual_server_port=client_data.get('virtual_server_port', 6769),
-            virtual_server_port_nums=client_data.get('server_port_nums', 1)
-        )
+        # 解析所有的 pairs (現在是列表)
+        pairs_list = []
+        for pairs_data in pairs_data_list:
+            # 解析 client 配置
+            client_data = pairs_data.get('client', {})
+            client_config = ClientConfig(
+                client_nic_pci=client_data.get('client_nic_pci', ''),
+                client_nic_name=client_data.get('client_nic_name', ''),
+                client_nic_driver=client_data.get('client_nic_driver', 'i40e'),
+                client_ip=client_data.get('client_ip', ''),
+                source_ip_nums=client_data.get('source_ip_nums', 0),
+                client_gw=client_data.get('client_gw', ''),
+                client_duration=client_data.get('client_duration', ''),
+                client_cpu_core=client_data.get('client_cpu_core', 0),
+                tx_burst=client_data.get('tx_burst', 0),
+                launch_num=client_data.get('launch_num', 0),
+                cc=client_data.get('cc', ''),
+                keepalive=client_data.get('keepalive', ''),
+                rss=client_data.get('rss', False),
+                socket_mem=client_data.get('socket_mem', 0),
+                virtual_server_ip=client_data.get('virtual_server_ip', ''),
+                virtual_server_port=client_data.get('virtual_server_port', 6769),
+                virtual_server_port_nums=client_data.get('server_port_nums', 1)
+            )
 
-        # 解析 server 配置
-        server_data = pairs_data.get('server', {})
-        server_config = ServerConfig(
-            server_nic_pci=server_data.get('server_nic_pci', ''),
-            cllient_nic_name=server_data.get('cllient_nic_name', ''),
-            server_ip=server_data.get('server_ip', ''),
-            server_gw=server_data.get('server_gw', ''),
-            server_duration=server_data.get('server_duration', ''),
-            server_cpu_core=server_data.get('server_cpu_core', 0),
-            tx_burst=server_data.get('tx_burst', 0),
-            keepalive=server_data.get('keepalive', ''),
-            rss=server_data.get('rss', False),
-            socket_mem=server_data.get('socket_mem', 0),
-            listend_port=server_data.get('listend_port', 6768),
-            listend_port_nums=server_data.get('listend_port_nums', 1)
-        )
+            # 解析 server 配置
+            server_data = pairs_data.get('server', {})
+            server_config = ServerConfig(
+                server_nic_pci=server_data.get('server_nic_pci', ''),
+                server_nic_name=server_data.get('server_nic_name', ''),
+                server_nic_driver=server_data.get('server_nic_driver', 'i40e'),
+                server_ip=server_data.get('server_ip', ''),
+                server_gw=server_data.get('server_gw', ''),
+                server_duration=server_data.get('server_duration', ''),
+                server_cpu_core=server_data.get('server_cpu_core', 0),
+                tx_burst=server_data.get('tx_burst', 0),
+                keepalive=server_data.get('keepalive', ''),
+                rss=server_data.get('rss', False),
+                socket_mem=server_data.get('socket_mem', 0),
+                listend_port=server_data.get('listend_port', 6768),
+                listend_port_nums=server_data.get('listend_port_nums', 1)
+            )
 
-        # 建立 TrafficGeneratorPair 物件
-        pair = TrafficGeneratorPair(
-            client=client_config,
-            server=server_config,
-            payload_size=pairs_data.get('payload_size', 1024),
-            protocol=pairs_data.get('protocol', 'tcp')
-        )
+            # 建立 TrafficGeneratorPair 物件
+            pair = TrafficGeneratorPair(
+                client=client_config,
+                server=server_config,
+                payload_size=pairs_data.get('payload_size', 1024),
+                protocol=pairs_data.get('protocol', 'tcp')
+            )
+            pairs_list.append(pair)
 
         # 建立 TrafficGenerator 物件
         traffic_generator = TrafficGenerator(
@@ -159,7 +169,9 @@ class Config:
             password=tg_data.get('password', ''),
             dpdk_path=tg_data.get('dpdk_path', ''),
             dperf_path=tg_data.get('dperf_path', ''),
-            pairs=pair
+            hugepage_frames=tg_data.get('hugepage_frames', 2),
+            hugepage_size=tg_data.get('hugepage_size', '1G'),
+            pairs=pairs_list
         )
 
         # 建立 TestConfig 物件
@@ -179,6 +191,47 @@ class Config:
         Returns:
             Dict[str, Any]: 配置字典
         """
+        pairs_list = []
+        for pair in self.test.traffic_generator.pairs:
+            pairs_list.append({
+                'client': {
+                    'client_nic_pci': pair.client.client_nic_pci,
+                    'client_nic_name': pair.client.client_nic_name,
+                    'client_nic_driver': pair.client.client_nic_driver,
+                    'client_ip': pair.client.client_ip,
+                    'source_ip_nums': pair.client.source_ip_nums,
+                    'client_gw': pair.client.client_gw,
+                    'client_duration': pair.client.client_duration,
+                    'client_cpu_core': pair.client.client_cpu_core,
+                    'tx_burst': pair.client.tx_burst,
+                    'launch_num': pair.client.launch_num,
+                    'cc': pair.client.cc,
+                    'keepalive': pair.client.keepalive,
+                    'rss': pair.client.rss,
+                    'socket_mem': pair.client.socket_mem,
+                    'virtual_server_ip': pair.client.virtual_server_ip,
+                    'virtual_server_port': pair.client.virtual_server_port,
+                    'virtual_server_port_nums': pair.client.virtual_server_port_nums,
+                },
+                'server': {
+                    'server_nic_pci': pair.server.server_nic_pci,
+                    'server_nic_name': pair.server.server_nic_name,
+                    'server_nic_driver': pair.server.server_nic_driver,
+                    'server_ip': pair.server.server_ip,
+                    'server_gw': pair.server.server_gw,
+                    'server_duration': pair.server.server_duration,
+                    'server_cpu_core': pair.server.server_cpu_core,
+                    'tx_burst': pair.server.tx_burst,
+                    'keepalive': pair.server.keepalive,
+                    'rss': pair.server.rss,
+                    'socket_mem': pair.server.socket_mem,
+                    'listend_port': pair.server.listend_port,
+                    'listend_port_nums': pair.server.listend_port_nums,
+                },
+                'payload_size': pair.payload_size,
+                'protocol': pair.protocol,
+            })
+
         return {
             'test': {
                 'apv_management_ip': self.test.apv_management_ip,
@@ -192,42 +245,9 @@ class Config:
                     'password': self.test.traffic_generator.password,
                     'dpdk_path': self.test.traffic_generator.dpdk_path,
                     'dperf_path': self.test.traffic_generator.dperf_path,
-                    'pairs': {
-                        'client': {
-                            'client_nic_pci': self.test.traffic_generator.pairs.client.client_nic_pci,
-                            'cllient_nic_name': self.test.traffic_generator.pairs.client.cllient_nic_name,
-                            'client_ip': self.test.traffic_generator.pairs.client.client_ip,
-                            'source_ip_nums': self.test.traffic_generator.pairs.client.source_ip_nums,
-                            'client_gw': self.test.traffic_generator.pairs.client.client_gw,
-                            'client_duration': self.test.traffic_generator.pairs.client.client_duration,
-                            'client_cpu_core': self.test.traffic_generator.pairs.client.client_cpu_core,
-                            'tx_burst': self.test.traffic_generator.pairs.client.tx_burst,
-                            'launch_num': self.test.traffic_generator.pairs.client.launch_num,
-                            'cc': self.test.traffic_generator.pairs.client.cc,
-                            'keepalive': self.test.traffic_generator.pairs.client.keepalive,
-                            'rss': self.test.traffic_generator.pairs.client.rss,
-                            'socket_mem': self.test.traffic_generator.pairs.client.socket_mem,
-                            'virtual_server_ip': self.test.traffic_generator.pairs.client.virtual_server_ip,
-                            'virtual_server_port': self.test.traffic_generator.pairs.client.virtual_server_port,
-                            'virtual_server_port_nums': self.test.traffic_generator.pairs.client.virtual_server_port_nums,
-                        },
-                        'server': {
-                            'server_nic_pci': self.test.traffic_generator.pairs.server.server_nic_pci,
-                            'cllient_nic_name': self.test.traffic_generator.pairs.server.cllient_nic_name,
-                            'server_ip': self.test.traffic_generator.pairs.server.server_ip,
-                            'server_gw': self.test.traffic_generator.pairs.server.server_gw,
-                            'server_duration': self.test.traffic_generator.pairs.server.server_duration,
-                            'server_cpu_core': self.test.traffic_generator.pairs.server.server_cpu_core,
-                            'tx_burst': self.test.traffic_generator.pairs.server.tx_burst,
-                            'keepalive': self.test.traffic_generator.pairs.server.keepalive,
-                            'rss': self.test.traffic_generator.pairs.server.rss,
-                            'socket_mem': self.test.traffic_generator.pairs.server.socket_mem,
-                            'listend_port': self.test.traffic_generator.pairs.server.listend_port,
-                            'listend_port_nums': self.test.traffic_generator.pairs.server.listend_port_nums,
-                        },
-                        'payload_size': self.test.traffic_generator.pairs.payload_size,
-                        'protocol': self.test.traffic_generator.pairs.protocol,
-                    }
+                    'hugepage_frames': self.test.traffic_generator.hugepage_frames,
+                    'hugepage_size': self.test.traffic_generator.hugepage_size,
+                    'pairs': pairs_list
                 }
             }
         }
