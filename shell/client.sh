@@ -1,3 +1,3 @@
 cd dperf
 ./shell/bind.sh
-./build/dperf -c conf/client.conf 
+./build/dperf -c config/client_test.conf 

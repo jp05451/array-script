@@ -1,3 +1,4 @@
 cd dperf
+# ls
 # ./shell/bind.sh
-./build/dperf -c conf/server.conf 
+./build/dperf -c config/server_test.conf
