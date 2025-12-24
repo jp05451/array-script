@@ -3,7 +3,7 @@
 
 import argparse
 import paramiko
-import signal
+# import signal  # 暫時關閉 signal，因為與多線程衝突
 import sys
 from typing import Tuple, Optional
 from config import Config
@@ -105,18 +105,19 @@ class SignalHandler:
         Args:
             stdin: SSH 標準輸入流
         """
+        # 暫時關閉 signal 處理，因為與多線程衝突
+        # def handler(sig, frame):
+        #     print("\n\n收到中斷信號，正在停止遠端程式...")
+        #     try:
+        #         stdin.write("\x03")
+        #         stdin.flush()
+        #     except Exception:
+        #         pass
+        #     self.interrupted = True
 
-        def handler(sig, frame):
-            print("\n\n收到中斷信號，正在停止遠端程式...")
-            try:
-                stdin.write("\x03")
-                stdin.flush()
-            except Exception:
-                pass
-            self.interrupted = True
-
-        self._original_handler = signal.signal(signal.SIGINT, handler)
-        print("提示: 按 Ctrl+C 可停止程式執行\n")
+        # self._original_handler = signal.signal(signal.SIGINT, handler)
+        # print("提示: 按 Ctrl+C 可停止程式執行\n")
+        pass
 
     def stop(self) -> None:
         """標記為已中斷"""
@@ -124,8 +125,10 @@ class SignalHandler:
 
     def restore(self) -> None:
         """恢復原始信號處理器"""
-        if self._original_handler:
-            signal.signal(signal.SIGINT, self._original_handler)
+        # 暫時關閉 signal 處理，因為與多線程衝突
+        # if self._original_handler:
+        #     signal.signal(signal.SIGINT, self._original_handler)
+        pass
 
 
 class RealTimeStreamReader:
