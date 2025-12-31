@@ -45,7 +45,8 @@ test:
 
           # 測試持續時間 (支援格式: s=秒, m=分鐘, h=小時)
           # 不知道為什麼 client都會比設定的多33秒才結束
-          client_duration: 10s
+          client_duration: 570s
+          client_duration: 1s
 
           # 使用的 CPU 核心數量 (影響並行處理能力)
           client_cpu_core: 6
@@ -91,7 +92,8 @@ test:
 
           # 測試持續時間
           # server 會比設定的多3秒才結束
-          server_duration: 1s
+          # server_duration: 40s
+          server_duration: 600s
 
           # 使用的 CPU 核心數量
           server_cpu_core: 14
