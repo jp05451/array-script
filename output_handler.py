@@ -2,6 +2,8 @@
 """輸出處理器模組 - 支援輸出到 stdout 或檔案"""
 
 from typing import Optional
+import os
+import re
 
 
 class OutputHandler:
@@ -20,7 +22,12 @@ class OutputHandler:
         # 如果指定了輸出檔案，開啟檔案
         if self.output_path:
             try:
-                self._file_handle = open(self.output_path, 'w', encoding='utf-8')
+                # 如果目錄不存在，則建立目錄
+                output_dir = os.path.dirname(self.output_path)
+                if output_dir and not os.path.exists(output_dir):
+                    os.makedirs(output_dir, exist_ok=True)
+                
+                self._file_handle = open(self.output_path, 'w+', encoding='utf-8')
                 print(f"輸出將寫入到檔案: {self.output_path}")
             except Exception as e:
                 print(f"警告：無法開啟輸出檔案 {self.output_path}: {e}")
@@ -36,13 +43,15 @@ class OutputHandler:
             end: 結尾字符（預設為換行）
             flush: 是否立即刷新緩衝區
         """
+        ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
+        message = ansi_escape.sub('', message)
         if self._file_handle:
             self._file_handle.write(message + end)
-            print(f"OUTPUT<==\t{message}", end=end, flush=flush)
+            # print(f"OUTPUT<==\t{message}", end=end, flush=flush)
             if flush:
                 self._file_handle.flush()
         else:
-            print(f"STDOUT<==\t{message}", end=end, flush=flush)
+            print(f"{message}", end=end, flush=flush)
 
     def print_header(self, script_path: str) -> None:
         """打印執行頭部信息"""
