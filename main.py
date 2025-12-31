@@ -1,12 +1,12 @@
 import argparse
 import paramiko
 from ssh_executor import SSHExecutor
+from dperfSetup import dperf
 from config import Config
 
 def load_yaml_config(yaml_path):
     """從 YAML 檔案載入配置"""
     return Config.from_yaml(yaml_path)
-
 
 def parse_arguments():
     """解析命令列參數"""
@@ -14,7 +14,7 @@ def parse_arguments():
         description='透過 SSH 連接到遠端機器並執行指定的 shell 腳本'
     )
     parser.add_argument(
-        '-s', '--script',
+        '-s','--script',
         type=str,
         default='shell.sh',
         help='要執行的 shell 腳本路徑 (預設: shell.sh)'
@@ -33,7 +33,7 @@ def parse_arguments():
         '-c', '--config',
         type=str,
         default='config.yaml',
-        help='指定 YAML 配置檔案路徑 (預設: config.yaml)'
+        help='指定 YAML 配置檔案路徑 (預設: config.yaml) 如果輸入其他參數，則會覆蓋 YAML 配置中的對應值'
     )
     parser.add_argument(
         '-d','--duration'
@@ -59,27 +59,38 @@ def parse_arguments():
     parser.add_argument(
         '-o','--output',
         type=str,
-        default='STDOUT',
+        default='resaults.csv',
         help='指定輸出結果的檔案路徑,default為STDOUT'
     )
     
     parser.add_argument(
         '--log',
         type=str,
-        help='指定日誌檔案名稱 (預設: dperf.log)'
-    )
-    parser.add_argument(
-        '--client',
-        action='store_true',
-        help="client mode"
-    )
-    parser.add_argument(
-        '--server',
-        action='store_true',
-        help="server mode"
+        default='./log',
+        help='指定日誌檔案資料夾 (預設: ./log)'
     )
     return parser.parse_args()
 
+def argOverrideConfig(args, config):
+    """使用命令列參數覆蓋配置"""
+    # 覆蓋配置中的對應值
+    
+    # 傳輸時長
+    if args.duration is not None:
+        config.test.pairs.client.duration = args.duration
+        config.test.pairs.server.duration = args.duration
+        
+    if args.sessions is not None:
+        config.test.pairs.client.cc = args.sessions
+        
+    # 封包大小
+    if args.packet_size is not None:
+        config.test.traffic_generator.pairs.payload_size = args.packet_size
+        
+    # 封包間隔時間
+    if args.packet_interval is not None:
+        config.test.pairs.server.keepalive = args.packet_interval
+        config.test.pairs.client.keepalive = args.packet_interval
 
 def main():
     """主程式"""
@@ -98,18 +109,15 @@ def main():
     else:
         exit("錯誤：未指定配置檔案")
 
-    # 建立 SSH 執行器
-    executor = SSHExecutor(config.test.traffic_generator.management_ip,
-                           config.test.traffic_generator.management_port,
-                           config.test.traffic_generator.username,
-                           config.test.traffic_generator.password)
+    # 處理輸出路徑參數
+    # log_path = None if args.log == 'STDOUT' else args.log
+    avx = dperf(config,pair_index=0, log_path=args.log, output_path=args.output)
+    avx.setupEnv()
 
+    # 建立兩個執行緒分別連線到 server 和 client
     try:
-        # 連接到遠端主機
-        executor.connect()
-
-        # 執行腳本
-        executor.execute_script(args.script, real_time=args.realtime)
+        avx.runPairTest()
+        print("=== Server 和 Client 執行緒已完成 ===\n")
 
     except FileNotFoundError:
         print(f"錯誤：找不到腳本文件 '{args.script}'")
@@ -124,9 +132,6 @@ def main():
         if args.verbose:
             import traceback
             traceback.print_exc()
-    finally:
-        # 關閉連接
-        executor.close()
 
 
 if __name__ == "__main__":
