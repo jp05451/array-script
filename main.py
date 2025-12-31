@@ -35,7 +35,49 @@ def parse_arguments():
         default='config.yaml',
         help='指定 YAML 配置檔案路徑 (預設: config.yaml)'
     )
-
+    parser.add_argument(
+        '-d','--duration'
+        ,type=int,
+        help='指定測試持續時間,單位為秒'
+    )
+    parser.add_argument(
+        '-p','--packet_size'
+        ,type=int,
+        help='指定封包大小,單位為bytes'
+    )
+    parser.add_argument(
+        '--sessions',
+        type=int,
+        help='指定同時啟動的連線數量'
+    )
+    parser.add_argument(
+        '-i','--packet_interval',
+        type=int,
+        help='指定封包間隔時間,單位為微秒'
+    )
+    
+    parser.add_argument(
+        '-o','--output',
+        type=str,
+        default='STDOUT',
+        help='指定輸出結果的檔案路徑,default為STDOUT'
+    )
+    
+    parser.add_argument(
+        '--log',
+        type=str,
+        help='指定日誌檔案名稱 (預設: dperf.log)'
+    )
+    parser.add_argument(
+        '--client',
+        action='store_true',
+        help="client mode"
+    )
+    parser.add_argument(
+        '--server',
+        action='store_true',
+        help="server mode"
+    )
     return parser.parse_args()
 
 
