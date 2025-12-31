@@ -324,7 +324,7 @@ class SSHExecutor:
         port: int,
         user: str,
         password: str,
-        output_path: Optional[str] = None,
+        log_path: Optional[str] = None,
     ):
         """
         初始化 SSH 執行器
@@ -342,7 +342,7 @@ class SSHExecutor:
             user=user,
             password=password,
         )
-        self.output_handler = OutputHandler(output_path)
+        self.output_handler = OutputHandler(log_path)
         self._executor: Optional[CommandExecutor] = None
 
     def connect(self, persistent_session: bool = False) -> None:
@@ -359,7 +359,10 @@ class SSHExecutor:
         self.persistent_session = persistent_session
         if persistent_session:
             self._executor.start_session()
-
+    def connect_session(self) -> None:
+        """建立持久 SSH 連接"""
+        self.connect(persistent_session=True)
+        
     def execute_script(
         self, script_path: str, real_time: bool = False
     ) -> Optional[Tuple[str, str, int]]:
@@ -371,7 +374,7 @@ class SSHExecutor:
             real_time: 是否即時輸出 (預設: False)
 
         Returns:
-            如果 real_time=False，返回 (output, error, exit_status)，否則返回 None
+            如果 real_time=False,返回 (output, error, exit_status)，否則返回 None
         """
         if not self._executor:
             raise Exception("尚未建立 SSH 連接")
@@ -408,6 +411,10 @@ class SSHExecutor:
             self._executor.execute_realtime(command)
             return None
         else:
+            if self.persistent_session:
+                output = self._executor.execute_in_session(command)
+                self.output_handler.print_output(output)
+                return output, "", 0
             output, error, exit_status = self._executor.execute_simple(command)
 
             self.output_handler.print_output(output)
