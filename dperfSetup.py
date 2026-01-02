@@ -45,6 +45,8 @@ class dperf:
     def connect(self):
         """連接到遠端主機"""
         self.executor.connect(persistent_session=True)
+        self.server_executor.connect(persistent_session=True)
+        self.client_executor.connect(persistent_session=True)
         
     def disconnect(self):
         """斷開與遠端主機的連接"""
