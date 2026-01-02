@@ -49,7 +49,88 @@ class dperf:
     def disconnect(self):
         """斷開與遠端主機的連接"""
         self.executor.close()
-        
+        self.server_executor.close()
+        self.client_executor.close()
+    
+    def generateServerConfig(self):
+        """產生 dperf server 配置檔案"""
+        server_cfg = self.pair.server
+
+        config_lines = [
+            "mode            server",
+            f"tx_burst        {server_cfg.tx_burst}",
+            f"cpu             {server_cfg.server_cpu_core}",
+        ]
+
+        if server_cfg.rss:
+            config_lines.append("rss")
+
+        config_lines.extend(
+            [
+                f"socket_mem      {server_cfg.socket_mem}",
+                f"protocol        {self.pair.protocol}",
+                f"duration        {server_cfg.server_duration}",
+                f"payload_size    {self.pair.payload_size}",
+                f"keepalive       {server_cfg.keepalive}",
+                "",
+                "# port           pci        addr        gateway        [mac]",
+                f"port            {server_cfg.server_nic_pci}        {server_cfg.server_ip}        {server_cfg.server_gw}",
+                "",
+                "# addr_start      num",
+                f"client          {self.pair.client.client_ip}    {self.pair.client.source_ip_nums}",
+                "",
+                "# addr_start      num",
+                f"server          {server_cfg.server_ip}    1",
+                "",
+                "# port_start      num",
+                f"listen          {server_cfg.listend_port}    {server_cfg.listend_port_nums}",
+                "",
+            ]
+        )
+
+        return "\n".join(config_lines)
+
+    def generateClientConfig(self):
+        """產生 dperf client 配置檔案"""
+        client_cfg = self.pair.client
+
+        config_lines = [
+            "mode            client",
+            f"tx_burst        {client_cfg.tx_burst}",
+            f"launch_num      {client_cfg.launch_num}",
+            f"cpu             {client_cfg.client_cpu_core}",
+        ]
+
+        if client_cfg.rss:
+            config_lines.append("rss")
+
+        config_lines.extend(
+            [
+                f"socket_mem      {client_cfg.socket_mem}",
+                f"protocol        {self.pair.protocol}",
+                f"payload_size    {self.pair.payload_size}",
+                f"duration        {client_cfg.client_duration}",
+                "",
+                f"cc              {client_cfg.cc}",
+                f"keepalive       {client_cfg.keepalive}",
+                "",
+                "# port           pci             addr         gateway       [mac]",
+                f"port            {client_cfg.client_nic_pci}    {client_cfg.client_ip}    {client_cfg.client_gw}",
+                "",
+                "# addr_start      num",
+                f"client          {client_cfg.client_ip}    {client_cfg.source_ip_nums}",
+                "",
+                "# addr_start      num",
+                f"server          {client_cfg.virtual_server_ip}    1",
+                "",
+                "# port_start      num",
+                f"listen          {client_cfg.virtual_server_port}    {client_cfg.virtual_server_port_nums}",
+                "",
+            ]
+        )
+
+        return "\n".join(config_lines)
+
     def runPairTest(self):
         """執行 dperf 測試，同時運行 server 和 client 並收集流量數據"""
         self.setupEnv()
@@ -116,7 +197,7 @@ class dperf:
         """啟動 dperf server 並收集流量數據"""
         try:
             print(f"[Pair {self.pair_index}] Server: 建立連接...")
-            self.server_executor.connect(persistent_session=True)
+            # self.server_executor.connect(persistent_session=True)
 
             print(f"[Pair {self.pair_index}] Server: 切換目錄到 dperf...")
             self.server_executor.execute_command(
@@ -142,7 +223,7 @@ class dperf:
         """啟動 dperf client 並收集流量數據"""
         try:
             print(f"[Pair {self.pair_index}] Client: 建立連接...")
-            self.client_executor.connect(persistent_session=True)
+            # self.client_executor.connect(persistent_session=True)
 
             print(f"[Pair {self.pair_index}] Client: 切換目錄到 dperf...")
             self.client_executor.execute_command(
@@ -300,104 +381,25 @@ class dperf:
         self.executor.execute_command(
             f"cat > config/client_pair{self.pair_index}.conf << 'EOF'\n{clientConfig}\nEOF"
         )
+        self.executor.execute_command("ls -l config/")
 
     def setupEnv(self):
         """設定 dperf 環境"""
         try:
-            self.connect()
-
             # 設定 hugepages
             self.setHugePages()
             # 綁定 NICs
             self.bindNICs()
             # 建立配置檔案
             self.setupConfig()
-
-            self.disconnect()
             
         except Exception as e:
             print(f"設定 dperf 環境失敗: {e}")
             raise
 
 
-    def generateServerConfig(self):
-        """產生 dperf server 配置檔案"""
-        server_cfg = self.pair.server
-
-        config_lines = [
-            "mode            server",
-            f"tx_burst        {server_cfg.tx_burst}",
-            f"cpu             {server_cfg.server_cpu_core}",
-        ]
-
-        if server_cfg.rss:
-            config_lines.append("rss")
-
-        config_lines.extend(
-            [
-                f"socket_mem      {server_cfg.socket_mem}",
-                f"protocol        {self.pair.protocol}",
-                f"duration        {server_cfg.server_duration}",
-                f"payload_size    {self.pair.payload_size}",
-                f"keepalive       {server_cfg.keepalive}",
-                "",
-                "# port           pci        addr        gateway        [mac]",
-                f"port            {server_cfg.server_nic_pci}        {server_cfg.server_ip}        {server_cfg.server_gw}",
-                "",
-                "# addr_start      num",
-                f"client          {self.pair.client.client_ip}    {self.pair.client.source_ip_nums}",
-                "",
-                "# addr_start      num",
-                f"server          {server_cfg.server_ip}    1",
-                "",
-                "# port_start      num",
-                f"listen          {server_cfg.listend_port}    {server_cfg.listend_port_nums}",
-                "",
-            ]
-        )
-
-        return "\n".join(config_lines)
-
-    def generateClientConfig(self):
-        """產生 dperf client 配置檔案"""
-        client_cfg = self.pair.client
-
-        config_lines = [
-            "mode            client",
-            f"tx_burst        {client_cfg.tx_burst}",
-            f"launch_num      {client_cfg.launch_num}",
-            f"cpu             {client_cfg.client_cpu_core}",
-        ]
-
-        if client_cfg.rss:
-            config_lines.append("rss")
-
-        config_lines.extend(
-            [
-                f"socket_mem      {client_cfg.socket_mem}",
-                f"protocol        {self.pair.protocol}",
-                f"payload_size    {self.pair.payload_size}",
-                f"duration        {client_cfg.client_duration}",
-                "",
-                f"cc              {client_cfg.cc}",
-                f"keepalive       {client_cfg.keepalive}",
-                "",
-                "# port           pci             addr         gateway       [mac]",
-                f"port            {client_cfg.client_nic_pci}    {client_cfg.client_ip}    {client_cfg.client_gw}",
-                "",
-                "# addr_start      num",
-                f"client          {client_cfg.client_ip}    {client_cfg.source_ip_nums}",
-                "",
-                "# addr_start      num",
-                f"server          {client_cfg.virtual_server_ip}    1",
-                "",
-                "# port_start      num",
-                f"listen          {client_cfg.virtual_server_port}    {client_cfg.virtual_server_port_nums}",
-                "",
-            ]
-        )
-
-        return "\n".join(config_lines)
+    
+    
     
 if __name__ == "__main__":
     c = Config()

@@ -112,6 +112,7 @@ def main():
     # 處理輸出路徑參數
     # log_path = None if args.log == 'STDOUT' else args.log
     avx = dperf(config,pair_index=0, log_path=args.log, output_path=args.output)
+    avx.connect()
     avx.setupEnv()
 
     # 建立兩個執行緒分別連線到 server 和 client
@@ -132,6 +133,9 @@ def main():
         if args.verbose:
             import traceback
             traceback.print_exc()
+    finally:
+        avx.disconnect()
+
 
 
 if __name__ == "__main__":
