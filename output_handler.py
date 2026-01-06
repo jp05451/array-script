@@ -9,6 +9,20 @@ import re
 class OutputHandler:
     """輸出處理器 - 支援輸出到 stdout 或檔案"""
 
+    @staticmethod
+    def clean_ansi(text: str) -> str:
+        """
+        移除 ANSI 轉義序列和終端控制字符
+
+        Args:
+            text: 包含 ANSI 控制字符的文本
+
+        Returns:
+            清理後的純文本
+        """
+        ansi_escape = re.compile(r'\x1b\[[0-9;]*[mGKHJF]|\r|\x1b\[\?[0-9]*[hl]')
+        return ansi_escape.sub('', text)
+
     def __init__(self, output_path: Optional[str] = None):
         """
         初始化輸出處理器
@@ -43,8 +57,7 @@ class OutputHandler:
             end: 結尾字符（預設為換行）
             flush: 是否立即刷新緩衝區
         """
-        ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
-        message = ansi_escape.sub('', message)
+        message = self.clean_ansi(message)
         if self._file_handle:
             self._file_handle.write(message + end)
             # print(f"OUTPUT<==\t{message}", end=end, flush=flush)

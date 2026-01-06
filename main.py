@@ -59,7 +59,7 @@ def parse_arguments():
     parser.add_argument(
         '-o','--output',
         type=str,
-        default='resaults.csv',
+        default='results/results.csv',
         help='指定輸出結果的檔案路徑,default為STDOUT'
     )
     
