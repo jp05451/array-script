@@ -5,6 +5,8 @@ from concurrent.futures import ThreadPoolExecutor
 import re
 import os
 import csv
+import time
+from datetime import datetime
 
 
 class dperf:
@@ -12,11 +14,13 @@ class dperf:
         self.config = config
         self.pair_index = pair_index
         self.pair = config.test.traffic_generator.pairs[pair_index]
+        self.monitoring = False
         if log_path is None or log_path == "":
             log_path = "./logs"
         if not os.path.exists(log_path):
             os.makedirs(log_path, exist_ok=True)
         self.outputPath=output_path
+        self.logPath=log_path
         self.executor = SSHExecutor(
             config.test.traffic_generator.management_ip,
             config.test.traffic_generator.management_port,
@@ -41,6 +45,7 @@ class dperf:
         )
         self.serverOutput = None
         self.clientOutput = None
+        self.monitor_data = []
 
     def connect(self):
         """連接到遠端主機"""
@@ -140,14 +145,21 @@ class dperf:
         # 建立兩個獨立的 thread 來同時測試 server 和 client
         serverThread = Thread(target=self.serverStart, name=f"Server-Pair{self.pair_index}")
         clientThread = Thread(target=self.clientStart, name=f"Client-Pair{self.pair_index}")
+        monitorThread = Thread(target=self.monitorStart, name=f"Monitor-Pair{self.pair_index}")
 
         print(f"[Pair {self.pair_index}] 開始同時執行 server 和 client 測試...")
+        monitorThread.start()
+        time.sleep(2)  # 確保監控 thread 先啟
         serverThread.start()
         clientThread.start()
 
         # 等待兩個 thread 完成
         serverThread.join()
         clientThread.join()
+        self.monitorStop()
+        monitorThread.join(timeout=5)  # 最多等待 5 秒
+        if monitorThread.is_alive():
+            print(f"[Pair {self.pair_index}] 警告: 監控線程未能正常結束")
 
         print(f"[Pair {self.pair_index}] 測試完成")
         print(f"[Pair {self.pair_index}] Server 輸出: {self.serverOutput}")
@@ -247,6 +259,8 @@ class dperf:
         except Exception as e:
             print(f"[Pair {self.pair_index}] Client 執行失敗: {e}")
             self.clientOutput = None
+
+    
 
     def parseOutput(self, log):
         log = log[0]
@@ -399,7 +413,108 @@ class dperf:
             print(f"設定 dperf 環境失敗: {e}")
             raise
 
+    def monitorStart(self):
+        """開始監控 CPU 和 RAM 使用率，每秒記錄一次"""
+        self.monitoring = True
+        self.monitor_data = []
 
+        print(f"[Pair {self.pair_index}] 開始監控 CPU 和 RAM...")
+
+        # 建立監控數據的 CSV 文件路徑
+        monitor_file = f"{self.logPath}/dperf_pair{self.pair_index}_monitor.csv"
+
+        # 寫入 CSV 標題
+        with open(monitor_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Timestamp', 'CPU_Usage_Percent', 'RAM_Used_MB', 'RAM_Total_MB', 'RAM_Usage_Percent'])
+
+        while self.monitoring:
+            try:
+                # 獲取當前時間戳
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+                # 獲取 CPU 使用率（使用 top 命令）
+                # 使用 grep 'Cpu(s)' 並提取 idle 百分比，計算使用率 = 100 - idle
+                cpu_cmd = "top -bn1 | grep 'Cpu(s)' | awk '{print $8}'"
+                cpu_result = self.executor.execute_command(cpu_cmd)
+
+                # 清理輸出：移除 ANSI 轉義序列和額外的換行符
+                cpu_output = OutputHandler.clean_ansi(cpu_result[0]) if cpu_result else ""
+
+                # 提取數字部分（可能是最後一個有效的數字行）
+                cpu_lines = [line.strip() for line in cpu_output.split('\n') if line.strip()]
+                cpu_idle = 0
+                for line in reversed(cpu_lines):
+                    try:
+                        # 嘗試找到可以轉換為浮點數的行
+                        if line and not line.startswith('[') and not '#' in line:
+                            cpu_idle = float(line)
+                            break
+                    except ValueError:
+                        continue
+
+                cpu_usage = 100 - cpu_idle
+
+                # 獲取 RAM 使用情況（使用 free 命令）
+                ram_cmd = "free -m | grep Mem | awk '{print $3, $2}'"
+                ram_result = self.executor.execute_command(ram_cmd)
+
+                # 清理輸出
+                ram_output = OutputHandler.clean_ansi(ram_result[0]) if ram_result else ""
+                ram_lines = [line.strip() for line in ram_output.split('\n') if line.strip()]
+
+                ram_used = 0
+                ram_total = 0
+                ram_usage = 0
+
+                for line in reversed(ram_lines):
+                    try:
+                        if line and not line.startswith('[') and not '#' in line:
+                            ram_parts = line.split()
+                            if len(ram_parts) >= 2:
+                                ram_used = int(ram_parts[0])
+                                ram_total = int(ram_parts[1])
+                                ram_usage = (ram_used / ram_total) * 100
+                                break
+                    except (ValueError, IndexError):
+                        continue
+
+                # 記錄數據
+                data_point = {
+                    'timestamp': timestamp,
+                    'cpu_usage': round(cpu_usage, 2),
+                    'ram_used': ram_used,
+                    'ram_total': ram_total,
+                    'ram_usage': round(ram_usage, 2)
+                }
+                self.monitor_data.append(data_point)
+
+                # 寫入 CSV 文件
+                with open(monitor_file, 'a', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow([
+                        timestamp,
+                        round(cpu_usage, 2),
+                        ram_used,
+                        ram_total,
+                        round(ram_usage, 2)
+                    ])
+
+                # 每秒收集一次數據
+                time.sleep(1)
+
+            except Exception as e:
+                print(f"[Pair {self.pair_index}] 監控錯誤: {e}")
+                time.sleep(1)
+
+        print(f"[Pair {self.pair_index}] 監控已停止，數據已保存到 {monitor_file}")
+
+    def monitorStop(self):
+        """停止監控"""
+        self.monitoring = False
+        print(f"[Pair {self.pair_index}] 正在停止監控...")
+    
+        
     
     
     
