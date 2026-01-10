@@ -444,6 +444,152 @@ handler.write("這會輸出到終端")
 
 ---
 
+## 配置檔案說明 (config.yaml)
+
+配置檔案使用 YAML 格式，包含 APV 設備和流量產生器的所有測試參數。
+
+### 基本結構
+
+```yaml
+test:
+  # APV 管理介面配置
+  apv_management_ip: 192.168.1.247
+  apv_management_port: 22
+  apv_username: array
+  apv_password: aclab@6768
+  apv_enable_password: ""
+
+  traffic_generator:
+    # 流量產生器基本設定
+    dperf_path: ~/dperf
+    dpdk_path: ~/dpdk
+    management_ip: 192.168.1.207
+    management_port: 22
+    username: root
+    password: array
+
+    # Hugepages 配置
+    hugepage_frames: 2
+    hugepage_size: 1G
+
+    pairs:
+      - client:
+          # Client 端配置
+        server:
+          # Server 端配置
+        # 共用配置
+```
+
+### 主要配置區塊
+
+#### 1. APV 管理介面配置
+
+| 參數 | 說明 | 範例 |
+|------|------|------|
+| `apv_management_ip` | APV 設備管理介面 IP 位址 | 192.168.1.247 |
+| `apv_management_port` | SSH 連接埠號 | 22 |
+| `apv_username` | 登入使用者名稱 | array |
+| `apv_password` | 登入密碼 | aclab@6768 |
+| `apv_enable_password` | Enable 模式密碼（若不需要可留空） | "" |
+
+#### 2. 流量產生器基本設定
+
+| 參數 | 說明 | 範例 |
+|------|------|------|
+| `dperf_path` | DPerf 安裝路徑 | ~/dperf |
+| `dpdk_path` | DPDK 安裝路徑 | ~/dpdk |
+| `management_ip` | 流量產生器管理介面 IP | 192.168.1.207 |
+| `management_port` | SSH 連接埠號 | 22 |
+| `username` | SSH 登入使用者名稱 | root |
+| `password` | SSH 登入密碼 | array |
+
+#### 3. Hugepages 配置
+
+| 參數 | 說明 | 範例 |
+|------|------|------|
+| `hugepage_frames` | Hugepage 分配數量 | 2 |
+| `hugepage_size` | 每個 Hugepage 的大小 | 1G (或 2M) |
+
+**說明**：Hugepages 用於 DPDK 的高效能記憶體管理，減少 TLB miss 並提升封包處理效能。
+
+#### 4. Client 端配置 (pairs[].client)
+
+| 參數 | 說明 | 範例 |
+|------|------|------|
+| `client_nic_pci` | 網卡 PCI 位址，用於 DPDK 綁定 | 0000:b6:00.0 |
+| `client_nic_name` | 網卡介面名稱 | enp182s0f0 |
+| `client_nic_driver` | 網卡原生驅動程式，解綁時恢復用 | i40e |
+| `client_ip` | 客戶端起始 IP 位址 | 10.10.11.1 |
+| `source_ip_nums` | 模擬的源 IP 數量 | 60 |
+| `client_gw` | 客戶端預設閘道 | 10.10.11.100 |
+| `client_duration` | 測試持續時間 (s/m/h) | 1s, 570s |
+| `client_cpu_core` | 使用的 CPU 核心數量 | 6 |
+| `tx_burst` | 每次傳送的封包批次大小 | 1024 |
+| `launch_num` | 同時啟動的連線數量 | 100 |
+| `cc` | 併發連線數 (支援 k 單位) | 2k (=2000) |
+| `keepalive` | TCP keepalive 間隔 (us/ms/s) | 1us |
+| `rss` | 啟用 RSS 多佇列負載均衡 | true/false |
+| `socket_mem` | DPDK 記憶體池大小 (MB) | 1024 |
+| `virtual_server_ip` | 目標伺服器 IP (可能為 VIP) | 10.10.11.101 |
+| `virtual_server_port` | 目標伺服器連接埠 | 6667 |
+| `server_port_nums` | 伺服器埠數量 | 1 |
+
+#### 5. Server 端配置 (pairs[].server)
+
+| 參數 | 說明 | 範例 |
+|------|------|------|
+| `server_nic_pci` | 網卡 PCI 位址 | 0000:b6:00.1 |
+| `server_nic_name` | 網卡介面名稱 | enp182s0f1 |
+| `server_nic_driver` | 網卡原生驅動程式 | i40e |
+| `server_ip` | 伺服器 IP 位址 | 10.10.12.1 |
+| `server_gw` | 伺服器預設閘道 | 10.10.12.100 |
+| `server_duration` | 測試持續時間 (s/m/h) | 40s, 600s |
+| `server_cpu_core` | 使用的 CPU 核心數量 | 14 |
+| `tx_burst` | 每次傳送的封包批次大小 | 1024 |
+| `keepalive` | TCP keepalive 間隔 | 1us |
+| `rss` | 啟用 RSS | true/false |
+| `socket_mem` | DPDK 記憶體池大小 (MB) | 1024 |
+| `listen_port` | 監聽的起始埠號 | 6666 |
+| `listen_port_nums` | 監聽的埠數量 | 1 |
+
+#### 6. 共用配置 (pairs[])
+
+| 參數 | 說明 | 範例 |
+|------|------|------|
+| `payload_size` | 每個封包的有效負載大小 (bytes) | 1024 |
+| `protocol` | 傳輸協定 | tcp/udp/http |
+
+### 配置建議
+
+1. **CPU 核心數**：Server 端通常需要比 Client 端更多核心，建議 server_cpu_core ≥ client_cpu_core
+2. **測試時間**：Server 端應比 Client 端多執行數秒，以確保完整接收所有流量
+3. **記憶體配置**：socket_mem 應根據併發連線數和封包大小調整，建議至少 1024 MB
+4. **併發連線數**：cc 值會影響資源使用，應根據測試目標和系統能力設定
+5. **RSS 設定**：多核心環境下建議啟用 RSS 以提升效能
+
+### 多組 Pair 配置
+
+若需測試多組網卡對，可在 `pairs` 清單中添加多個配置區塊：
+
+```yaml
+pairs:
+  - client:
+      client_nic_pci: 0000:b6:00.0
+      # ... 其他配置
+    server:
+      server_nic_pci: 0000:b6:00.1
+      # ... 其他配置
+
+  - client:
+      client_nic_pci: 0000:b7:00.0
+      # ... 第二組配置
+    server:
+      server_nic_pci: 0000:b7:00.1
+      # ... 第二組配置
+```
+
+---
+
 ## 系統需求
 
 - Python 3.7+
