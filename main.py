@@ -66,7 +66,7 @@ def parse_arguments():
     parser.add_argument(
         '--log',
         type=str,
-        default='./log',
+        default='./logs',
         help='指定日誌檔案資料夾 (預設: ./log)'
     )
     return parser.parse_args()
@@ -74,7 +74,6 @@ def parse_arguments():
 def argOverrideConfig(args, config):
     """使用命令列參數覆蓋配置"""
     # 覆蓋配置中的對應值
-    
     # 傳輸時長
     if args.duration is not None:
         config.test.pairs.client.duration = args.duration
@@ -99,7 +98,7 @@ def main():
     # 讀取配置
     if args.config:
         # 從 YAML 載入配置
-        config = load_yaml_config(args.config)
+        config = Config(args.config)
         print(f"已載入配置檔案: {args.config}")
         if args.verbose:
             print(f"  APV IP: {config.test.apv_management_ip}:{config.test.apv_managment_port}")
@@ -111,7 +110,7 @@ def main():
 
     # 處理輸出路徑參數
     # log_path = None if args.log == 'STDOUT' else args.log
-    avx = dperf(config,pair_index=0, log_path=args.log, output_path=args.output)
+    avx = dperf(config,pair_index=0, log_path=args.log, output_path=args.output,enable_redis=False)
     avx.connect()
     avx.setupEnv()
 
