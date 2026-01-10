@@ -1,9 +1,9 @@
 test:
   # APV 管理介面配置
   # apv_management_ip: 140.118.109.106
-  # apv_managment_port: 6666
+  # apv_management_port: 6666
   apv_management_ip: 192.168.1.247
-  apv_managment_port: 22
+  apv_management_port: 22
   apv_username: array
   apv_password: aclab@6768
   
