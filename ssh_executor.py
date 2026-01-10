@@ -407,18 +407,18 @@ class SSHExecutor:
         Returns:
             (output, error, exit_status) 元組，發生錯誤時返回 None
         """
-        if real_time:
-            self._executor.execute_realtime(command)
-            return None
-        else:
-            if self.persistent_session:
-                output = self._executor.execute_in_session(command)
-                self.output_handler.print_output(output)
-                return output, "", 0
-            output, error, exit_status = self._executor.execute_simple(command)
-
+        if self.persistent_session:
+            output = self._executor.execute_in_session(command)
             self.output_handler.print_output(output)
-            return output, error, exit_status
+            return output, "", 0
+        else:
+            if real_time:
+                self._executor.execute_realtime(command)
+                return None
+            else:
+                output, error, exit_status = self._executor.execute_simple(command)
+                self.output_handler.print_output(output)
+                return output, error, exit_status
 
     def close(self) -> None:
         """關閉 SSH 連接"""
