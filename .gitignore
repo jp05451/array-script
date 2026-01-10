@@ -5,5 +5,7 @@ __pycache__
 .DS_Store
 *.txt
 *.log
-results
+results*
+*.yaml
+
 *.csv
