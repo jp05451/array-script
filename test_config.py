@@ -6,7 +6,8 @@ from config import Config
 if __name__ == "__main__":
     try:
         # 載入配置
-        config = Config.from_yaml("config.yaml")
+        config=Config()
+        config.from_yaml("config.yaml")
         print("=" * 60)
         print("測試配置載入")
         print("=" * 60)
@@ -15,7 +16,7 @@ if __name__ == "__main__":
         # 顯示配置資訊
         print("=== APV 配置 ===")
         print(f"Management IP: {config.test.apv_management_ip}")
-        print(f"Management Port: {config.test.apv_managment_port}")
+        print(f"Management Port: {config.test.apv_management_port}")
         print(f"Username: {config.test.apv_username}")
         print(f"Password: {config.test.apv_password}")
 
@@ -66,8 +67,8 @@ if __name__ == "__main__":
             print(f"Keepalive: {server.keepalive}")
             print(f"RSS: {server.rss}")
             print(f"Socket Mem: {server.socket_mem}")
-            print(f"Listen Port: {server.listend_port}")
-            print(f"Listen Port Nums: {server.listend_port_nums}")
+            print(f"Listen Port: {server.listen_port}")
+            print(f"Listen Port Nums: {server.listen_port_nums}")
 
             print("\n=== Shared 配置 ===")
             print(f"Payload Size: {pair.payload_size}")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """測試 SSH 執行器的各種功能"""
 
-from ssh_executor import SSHExecutor, SSHConnectionManager
+from ssh_executor import SSHExecutor
 from config import Config
 import sys
 import time
@@ -316,93 +316,6 @@ def test_error_handling():
         return False
 
 
-def test_connection_manager():
-    """測試 7: 連接管理器功能"""
-    print_test_header("測試 7: 連接管理器")
-
-    config = Config().from_yaml("config.yaml")
-
-    def _test():
-        manager = SSHConnectionManager(
-            host=config.test.traffic_generator.management_ip,
-            port=config.test.traffic_generator.management_port,
-            user=config.test.traffic_generator.username,
-            password=config.test.traffic_generator.password,
-        )
-
-        print(f"\n連接前狀態: {manager.is_connected()}")
-        if not manager.is_connected():
-            print("✅ 連接前狀態正確")
-
-        manager.connect()
-        print(f"連接後狀態: {manager.is_connected()}")
-        if manager.is_connected():
-            print("✅ 連接後狀態正確")
-
-        # 測試獲取客戶端
-        client = manager.get_client()
-        if client is not None:
-            print("✅ 成功獲取客戶端")
-
-        manager.close()
-        print(f"關閉後狀態: {manager.is_connected()}")
-        if not manager.is_connected():
-            print("✅ 關閉後狀態正確")
-
-        print("\n✅ 連接管理器測試通過")
-        return True
-
-    try:
-        return retry_connection(_test)
-    except Exception as e:
-        print(f"❌ 測試失敗: {e}")
-        return False
-
-
-def test_with_statement():
-    """測試 8: with 語句支援"""
-    print_test_header("測試 8: with 語句支援")
-
-    config = Config().from_yaml("config.yaml")
-
-    def _test():
-        # 測試 SSHExecutor 的 with 語句
-        print("\n測試 SSHExecutor with 語句...")
-        with SSHExecutor(
-            host=config.test.traffic_generator.management_ip,
-            port=config.test.traffic_generator.management_port,
-            user=config.test.traffic_generator.username,
-            password=config.test.traffic_generator.password,
-        ) as executor:
-            output, _, _ = executor.execute_command("echo 'with statement test'")
-            if "with statement test" in output:
-                print("✅ SSHExecutor with 語句正常工作")
-
-        # 等待一下再建立下一個連接
-        print("\n等待 2 秒後測試 SSHConnectionManager...")
-        time.sleep(2)
-
-        # 測試 SSHConnectionManager 的 with 語句
-        print("\n測試 SSHConnectionManager with 語句...")
-        with SSHConnectionManager(
-            host=config.test.traffic_generator.management_ip,
-            port=config.test.traffic_generator.management_port,
-            user=config.test.traffic_generator.username,
-            password=config.test.traffic_generator.password,
-        ) as manager:
-            if manager.is_connected():
-                print("✅ SSHConnectionManager with 語句正常工作")
-
-        print("\n✅ with 語句支援測試通過")
-        return True
-
-    try:
-        return retry_connection(_test)
-    except Exception as e:
-        print(f"❌ 測試失敗: {e}")
-        return False
-
-
 def test_session_commands():
     """測試 9: Session 中的複雜命令"""
     print_test_header("測試 9: Session 中的複雜命令")
@@ -451,6 +364,119 @@ def test_session_commands():
         return False
 
 
+def test_persistent_session_ignores_realtime():
+    """測試 10: 持久 Session 忽略 real_time 參數（Bug 修正驗證）"""
+    print_test_header("測試 10: 持久 Session 忽略 real_time 參數")
+
+    config = Config().from_yaml("config.yaml")
+
+    def _test():
+        executor = SSHExecutor(
+            host=config.test.traffic_generator.management_ip,
+            port=config.test.traffic_generator.management_port,
+            user=config.test.traffic_generator.username,
+            password=config.test.traffic_generator.password,
+        )
+        try:
+            print("\n連接並啟用持久 session...")
+            executor.connect(persistent_session=True)
+
+            # 測試 10.1: real_time=False
+            print("\n--- 子測試 10.1: real_time=False ---")
+            output, _, _ = executor.execute_command("echo 'Test 1'", real_time=False)
+            if "Test 1" in output:
+                print("✅ real_time=False 正常工作")
+
+            # 測試 10.2: real_time=True（應該被忽略，使用 execute_in_session）
+            print("\n--- 子測試 10.2: real_time=True (應被忽略) ---")
+            output, _, _ = executor.execute_command("echo 'Test 2'", real_time=True)
+            if "Test 2" in output:
+                print("✅ real_time=True 被正確忽略，使用 session 模式")
+
+            # 測試 10.3: 驗證狀態保持（關鍵測試）
+            print("\n--- 子測試 10.3: 驗證狀態保持 ---")
+            executor.execute_command("cd /tmp", real_time=True)
+            output, _, _ = executor.execute_command("pwd", real_time=False)
+            if "/tmp" in output:
+                print("✅ 狀態正確保持（修正後不會出現 -c 錯誤）")
+            else:
+                print(f"❌ 狀態未保持: {output.strip()}")
+                return False
+
+            # 測試 10.4: 模擬 APV 命令序列（不應出現 ca_shell -c 錯誤）
+            print("\n--- 子測試 10.4: 模擬 APV 命令序列 ---")
+            executor.execute_command("echo 'enable'", real_time=True)
+            executor.execute_command("echo 'password'", real_time=True)
+            executor.execute_command("echo 'config terminal'", real_time=True)
+            output, _, _ = executor.execute_command("echo '?'", real_time=True)
+            if "?" in output:
+                print("✅ APV 風格命令序列正常執行（無 -c 錯誤）")
+            else:
+                print(f"⚠️  輸出: {output}")
+
+            print("\n✅ 持久 Session 忽略 real_time 測試通過")
+            return True
+        finally:
+            executor.close()
+
+    try:
+        return retry_connection(_test)
+    except Exception as e:
+        print(f"❌ 測試失敗: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def test_realtime_in_non_persistent_mode():
+    """測試 11: 非持久模式下的 real_time 功能"""
+    print_test_header("測試 11: 非持久模式的 real_time 功能")
+
+    config = Config().from_yaml("config.yaml")
+
+    def _test():
+        executor = SSHExecutor(
+            host=config.test.traffic_generator.management_ip,
+            port=config.test.traffic_generator.management_port,
+            user=config.test.traffic_generator.username,
+            password=config.test.traffic_generator.password,
+        )
+        try:
+            print("\n連接（非持久模式）...")
+            executor.connect(persistent_session=False)
+
+            # 測試標準模式
+            print("\n--- real_time=False（標準模式）---")
+            output, _, _ = executor.execute_command("echo 'Standard mode'", real_time=False)
+            if output and "Standard mode" in output:
+                print("✅ 標準模式正常")
+
+            # 測試實時模式
+            print("\n--- real_time=True（實時輸出模式）---")
+            print("執行: for i in 1 2 3; do echo \"Count: $i\"; sleep 0.3; done")
+            result = executor.execute_command(
+                "for i in 1 2 3; do echo \"Count: $i\"; sleep 0.3; done",
+                real_time=True
+            )
+            if result is None:
+                print("✅ real_time 模式返回 None（符合預期）")
+            else:
+                print(f"⚠️  返回了: {result}")
+
+            print("\n✅ 非持久模式的 real_time 功能測試通過")
+            return True
+        finally:
+            executor.close()
+
+    try:
+        return retry_connection(_test)
+    except Exception as e:
+        print(f"❌ 測試失敗: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def run_all_tests():
     """執行所有測試"""
     print("\n" + "=" * 70)
@@ -464,9 +490,9 @@ def run_all_tests():
         ("持久 Session", test_persistent_session),
         ("非持久 vs 持久對比", test_non_persistent_vs_persistent),
         ("錯誤處理", test_error_handling),
-        ("連接管理器", test_connection_manager),
-        ("with 語句支援", test_with_statement),
         ("複雜命令", test_session_commands),
+        ("持久 Session 忽略 real_time（Bug 修正驗證）", test_persistent_session_ignores_realtime),
+        ("非持久模式的 real_time 功能", test_realtime_in_non_persistent_mode),
     ]
 
     results = []
