@@ -493,6 +493,10 @@ class dperf:
     def setupConfig(self):
         """建立 dperf 配置檔案"""
         print("=============建立 dperf 配置檔案=============")
+        with open(f"config/server_pair{self.pair_index}.conf", 'w') as f:
+            f.write(self.generateServerConfig())
+        with open(f"config/client_pair{self.pair_index}.conf", 'w') as f:
+            f.write(self.generateClientConfig())
         self.executor.execute_command(
             f"cd {self.config.test.traffic_generator.dperf_path}"
         )
@@ -658,16 +662,24 @@ class dperf:
             return None
 
 
+def argParser():
+    import argparse
 
+    parser = argparse.ArgumentParser(description="dperf 測試設定")
+    parser.add_argument('--config', type=str, default='config.yaml', help='配置檔案路徑')
+    parser.add_argument('--pair_index', type=int, default=0, help='要測試的 pair 索引')
+    parser.add_argument('--enable_redis', action='store_true', help='是否啟用 Redis 儲存測試數據')
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
+    args= argParser()
+    # 載入配置檔案
     config = Config()
-    config.from_yaml("config.yaml")
+    config.from_yaml(args.config)
 
     # 建立 dperf 實例，啟用 Redis
-    test = dperf(config=config, pair_index=0, enable_redis=True)
-
+    test = dperf(config=config, pair_index=args.pair_index, enable_redis=args.enable_redis)
     # 連接到遠端主機
     test.connect()
 
@@ -675,43 +687,43 @@ if __name__ == "__main__":
     test.setupEnv()
 
     # 執行測試
-    output = test.runPairTest()
+    # output = test.runPairTest()
 
-    print("\n" + "="*60)
-    print("測試輸出:")
-    print("="*60)
-    print(output)
+    # print("\n" + "="*60)
+    # print("測試輸出:")
+    # print("="*60)
+    # print(output)
 
-    # 如果 Redis 啟用，顯示 Redis 中的數據摘要
-    if test.redis_handler and test.redis_handler.is_connected():
-        print("\n" + "="*60)
-        print("Redis 數據摘要:")
-        print("="*60)
-        summary = test.get_redis_summary()
-        if summary:
-            print(f"Pair Index: {summary['pair_index']}")
-            print(f"監控數據筆數: {summary['monitor_count']}")
-            print(f"Server 輸出筆數: {summary['server_output_count']}")
-            print(f"Client 輸出筆數: {summary['client_output_count']}")
+    # # 如果 Redis 啟用，顯示 Redis 中的數據摘要
+    # if test.redis_handler and test.redis_handler.is_connected():
+    #     print("\n" + "="*60)
+    #     print("Redis 數據摘要:")
+    #     print("="*60)
+    #     summary = test.get_redis_summary()
+    #     if summary:
+    #         print(f"Pair Index: {summary['pair_index']}")
+    #         print(f"監控數據筆數: {summary['monitor_count']}")
+    #         print(f"Server 輸出筆數: {summary['server_output_count']}")
+    #         print(f"Client 輸出筆數: {summary['client_output_count']}")
 
-        # 顯示最新的 server 和 client 輸出
-        print("\n" + "="*60)
-        print("Redis 中的最新測試輸出:")
-        print("="*60)
+    #     # 顯示最新的 server 和 client 輸出
+    #     print("\n" + "="*60)
+    #     print("Redis 中的最新測試輸出:")
+    #     print("="*60)
 
-        server_data = test.get_redis_test_output('server')
-        if server_data:
-            print(f"\nServer 輸出 (時間: {server_data.get('timestamp')}):")
-            for key, value in server_data.items():
-                if key not in ['pair_index', 'role', 'timestamp']:
-                    print(f"  {key}: {value}")
+    #     server_data = test.get_redis_test_output('server')
+    #     if server_data:
+    #         print(f"\nServer 輸出 (時間: {server_data.get('timestamp')}):")
+    #         for key, value in server_data.items():
+    #             if key not in ['pair_index', 'role', 'timestamp']:
+    #                 print(f"  {key}: {value}")
 
-        client_data = test.get_redis_test_output('client')
-        if client_data:
-            print(f"\nClient 輸出 (時間: {client_data.get('timestamp')}):")
-            for key, value in client_data.items():
-                if key not in ['pair_index', 'role', 'timestamp']:
-                    print(f"  {key}: {value}")
+    #     client_data = test.get_redis_test_output('client')
+    #     if client_data:
+    #         print(f"\nClient 輸出 (時間: {client_data.get('timestamp')}):")
+    #         for key, value in client_data.items():
+    #             if key not in ['pair_index', 'role', 'timestamp']:
+    #                 print(f"  {key}: {value}")
 
     # 斷開連接
     test.disconnect()
