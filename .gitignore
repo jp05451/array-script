@@ -7,5 +7,5 @@ __pycache__
 *.log
 results*
 *.yaml
-
+config/
 *.csv
