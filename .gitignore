@@ -4,7 +4,6 @@ __pycache__
 .env
 .DS_Store
 *.txt
-logs
-log
+*.log
 results
 *.csv
