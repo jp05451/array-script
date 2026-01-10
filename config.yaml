@@ -6,6 +6,7 @@ test:
   apv_management_port: 22
   apv_username: array
   apv_password: aclab@6768
+  apv_enable_password: ""
   
   # 流量產生器配置
   traffic_generator:

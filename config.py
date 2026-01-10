@@ -46,8 +46,8 @@ class ServerConfig:
     keepalive: str = ""
     rss: bool = False
     socket_mem: int = 0
-    listend_port: int = 0
-    listend_port_nums: int = 1
+    listen_port: int = 0
+    listen_port_nums: int = 1
 
 
 @dataclass
@@ -77,31 +77,34 @@ class TrafficGenerator:
 class TestConfig:
     """測試配置"""
     apv_management_ip: str = ""
-    apv_managment_port: int = 0
+    apv_management_port: int = 0
     apv_username: str = ""
     apv_password: str = ""
+    apv_enable_password: str = ""
     traffic_generator: TrafficGenerator = field(default_factory=TrafficGenerator)
 
 
-@dataclass
 class Config:
     """主配置類別"""
-    test: TestConfig = field(default_factory=TestConfig)
+    def __init__(self, yaml_path: str = None):
+        """初始化配置
 
-    @classmethod
-    def from_yaml(cls, yaml_path: str) -> 'Config':
-        """從 YAML 檔案載入配置
+        Args:
+            yaml_path: YAML 配置檔案路徑，如果提供則自動載入
+        """
+        self.test = TestConfig()
+
+        if yaml_path:
+            self.from_yaml(yaml_path)
+
+    def from_yaml(self, yaml_path: str) -> None:
+        """從 YAML 檔案載入配置，直接更新當前物件的屬性
 
         Args:
             yaml_path: YAML 配置檔案路徑
-
-        Returns:
-            Config: 配置物件
         """
         with open(yaml_path, 'r', encoding='utf-8') as f:
             data = yaml.safe_load(f)
-
-        config = cls()
 
         test_data = data['test']
 
@@ -148,8 +151,8 @@ class Config:
                 keepalive=server_data.get('keepalive', ''),
                 rss=server_data.get('rss', False),
                 socket_mem=server_data.get('socket_mem', 0),
-                listend_port=server_data.get('listend_port', 6768),
-                listend_port_nums=server_data.get('listend_port_nums', 1)
+                listen_port=server_data.get('listen_port', 6768),
+                listen_port_nums=server_data.get('listen_port_nums', 1)
             )
 
             # 建立 TrafficGeneratorPair 物件
@@ -174,16 +177,16 @@ class Config:
             pairs=pairs_list
         )
 
-        # 建立 TestConfig 物件
-        config.test = TestConfig(
+        # 直接更新當前物件的 test 屬性
+        self.test = TestConfig(
             apv_management_ip=test_data.get('apv_management_ip', ''),
-            apv_managment_port=test_data.get('apv_managment_port', 0),
+            apv_management_port=test_data.get('apv_management_port', 0),
             apv_username=test_data.get('apv_username', ''),
             apv_password=test_data.get('apv_password', ''),
+            apv_enable_password=test_data.get('apv_enable_password', ''),
             traffic_generator=traffic_generator
         )
-
-        return config
+        return self
 
     def to_dict(self) -> Dict[str, Any]:
         """將配置轉換為字典
@@ -225,8 +228,8 @@ class Config:
                     'keepalive': pair.server.keepalive,
                     'rss': pair.server.rss,
                     'socket_mem': pair.server.socket_mem,
-                    'listend_port': pair.server.listend_port,
-                    'listend_port_nums': pair.server.listend_port_nums,
+                    'listen_port': pair.server.listen_port,
+                    'listen_port_nums': pair.server.listen_port_nums,
                 },
                 'payload_size': pair.payload_size,
                 'protocol': pair.protocol,
@@ -235,9 +238,10 @@ class Config:
         return {
             'test': {
                 'apv_management_ip': self.test.apv_management_ip,
-                'apv_managment_port': self.test.apv_managment_port,
+                'apv_management_port': self.test.apv_management_port,
                 'apv_username': self.test.apv_username,
                 'apv_password': self.test.apv_password,
+                'apv_enable_password': self.test.apv_enable_password,
                 'traffic_generator': {
                     'management_ip': self.test.traffic_generator.management_ip,
                     'management_port': self.test.traffic_generator.management_port,
