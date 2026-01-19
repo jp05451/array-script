@@ -3,6 +3,7 @@ import paramiko
 from ssh_executor import SSHExecutor
 from dperfSetup import dperf
 from config import Config
+from APVSetup import APVSetup
 
 def load_yaml_config(yaml_path):
     """從 YAML 檔案載入配置"""
@@ -101,15 +102,19 @@ def main():
         config = Config(args.config)
         print(f"已載入配置檔案: {args.config}")
         if args.verbose:
-            print(f"  APV IP: {config.test.apv_management_ip}:{config.test.apv_managment_port}")
+            print(f"  APV IP: {config.test.apv_management_ip}:{config.test.apv_management_port}")
             print(f"  Traffic Generator IP: {config.test.traffic_generator.management_ip}:{config.test.traffic_generator.management_port}")
-            print(f"  Client IP: {config.test.traffic_generator.pairs.client_ip}")
-            print(f"  Server IP: {config.test.traffic_generator.pairs.server_ip}")
+            print(f"  Client IP: {config.test.traffic_generator.pairs[0].client.client_ip}")
+            print(f"  Server IP: {config.test.traffic_generator.pairs[0].server.server_ip}")
     else:
         exit("錯誤：未指定配置檔案")
 
     # 處理輸出路徑參數
     # log_path = None if args.log == 'STDOUT' else args.log
+    apv = APVSetup(config)
+    apv.connect()
+    apv.setupEnv(dry_run=False, clear=False)
+    
     avx = dperf(config,pair_index=0, log_path=args.log, output_path=args.output,enable_redis=False)
     avx.connect()
     avx.setupEnv()
@@ -118,6 +123,7 @@ def main():
     try:
         avx.runPairTest()
         print("=== Server 和 Client 執行緒已完成 ===\n")
+        apv.setupEnv(dry_run=False, clear=True)
 
     except FileNotFoundError:
         print(f"錯誤：找不到腳本文件 '{args.script}'")
@@ -134,6 +140,7 @@ def main():
             traceback.print_exc()
     finally:
         avx.disconnect()
+        apv.disconnect()
 
 
 
