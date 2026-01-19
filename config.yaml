@@ -47,7 +47,6 @@ test:
           # 測試持續時間 (支援格式: s=秒, m=分鐘, h=小時)
           # 不知道為什麼 client都會比設定的多33秒才結束
           client_duration: 1s
-          # client_duration: 570s
 
           # 使用的 CPU 核心數量 (影響並行處理能力)
           client_cpu_core: 6
@@ -72,7 +71,6 @@ test:
 
           virtual_server_ip: 10.10.11.101
 
-          # virtual_server_port: 6667
           virtual_server_port: 6769
 
           server_port_nums: 1
@@ -95,7 +93,6 @@ test:
           # 測試持續時間
           # server 會比設定的多3秒才結束
           server_duration: 40s
-          # server_duration: 600s
 
           # 使用的 CPU 核心數量
           server_cpu_core: 14
@@ -113,7 +110,6 @@ test:
           socket_mem: 1024
 
           # 監聽的起始埠號
-          listen_port: 6666
           listen_port: 6768
 
           # 監聽的埠數量 (可用於分散負載)
