@@ -332,6 +332,14 @@ __init__(self, output_path: Optional[str] = None)
   - 開啟檔案準備寫入
   - 若開啟檔案失敗，自動降級為 stdout 輸出
 
+##### 靜態方法
+
+###### `clean_ansi(text: str)` (staticmethod)
+- **功能**：移除 ANSI 轉義序列和終端控制字符
+- **參數**：`text` - 包含 ANSI 控制字符的文本
+- **返回值**：清理後的純文本
+- **說明**：移除顏色代碼、游標控制等 ANSI 轉義序列
+
 ##### 主要方法
 
 ###### `write(message: str, end: str = '\n', flush: bool = False)`
@@ -381,6 +389,353 @@ __init__(self, output_path: Optional[str] = None)
 ###### `__enter__()` / `__exit__()`
 - **功能**：支持 with 語句的上下文管理
 - **說明**：確保檔案資源正確釋放
+
+---
+
+### 4. RedisDB.py
+
+此模組提供 Redis 資料庫處理功能，用於儲存和檢索測試監控數據。
+
+#### Class: `RedisHandler`
+
+Redis 資料庫處理器，負責管理測試數據的持久化儲存。
+
+##### 初始化方法
+```python
+__init__(self, host: str = "localhost", port: int = 6379, db: int = 0, password: Optional[str] = None, decode_responses: bool = True)
+```
+- **功能**：初始化 Redis 連接
+- **參數**：
+  - `host`：Redis 主機地址（預設：localhost）
+  - `port`：Redis 端口號（預設：6379）
+  - `db`：Redis 數據庫編號（預設：0）
+  - `password`：Redis 密碼（可選）
+  - `decode_responses`：是否自動解碼響應為字符串（預設：True）
+- **說明**：自動測試連接並輸出連接狀態
+
+##### 主要方法
+
+###### `is_connected()`
+- **功能**：檢查是否成功連接到 Redis
+- **返回值**：布林值，True 表示已連接
+
+###### `save_monitor_data(pair_index: int, timestamp: str, cpu_usage: float, ram_used: int, ram_total: int, ram_usage: float)`
+- **功能**：儲存監控數據到 Redis
+- **參數**：
+  - `pair_index`：pair 索引
+  - `timestamp`：時間戳（格式：'%Y-%m-%d %H:%M:%S'）
+  - `cpu_usage`：CPU 使用率百分比
+  - `ram_used`：已使用 RAM (MB)
+  - `ram_total`：總 RAM (MB)
+  - `ram_usage`：RAM 使用率百分比
+- **返回值**：成功返回 True，否則返回 False
+- **資料結構**：
+  - Key：`monitor:pair{index}:{timestamp}`
+  - 使用 Sorted Set 按時間排序：`monitor:pair{index}:timeline`
+
+###### `save_test_output(pair_index: int, role: str, output: Dict, timestamp: Optional[str] = None)`
+- **功能**：儲存測試輸出數據（server 或 client）
+- **參數**：
+  - `pair_index`：pair 索引
+  - `role`：角色（'server' 或 'client'）
+  - `output`：測試輸出數據字典
+  - `timestamp`：時間戳（可選，預設使用當前時間）
+- **返回值**：成功返回 True，否則返回 False
+- **資料結構**：
+  - Info Key：`test:pair{index}:{role}:{timestamp}:info`
+  - Metrics Key：`test:pair{index}:{role}:{timestamp}:metrics`
+
+###### `get_monitor_data(pair_index: int, start_time: Optional[str] = None, end_time: Optional[str] = None)`
+- **功能**：獲取監控數據
+- **參數**：
+  - `pair_index`：pair 索引
+  - `start_time`：起始時間（可選）
+  - `end_time`：結束時間（可選）
+- **返回值**：監控數據列表（List[Dict]）
+
+###### `get_test_output(pair_index: int, role: str, timestamp: Optional[str] = None, include_metrics: bool = True)`
+- **功能**：獲取測試輸出數據
+- **參數**：
+  - `pair_index`：pair 索引
+  - `role`：角色（'server' 或 'client'）
+  - `timestamp`：時間戳（可選，若不提供則返回最新的）
+  - `include_metrics`：是否包含 metrics 數據（預設 True）
+- **返回值**：測試輸出數據字典，包含 'info' 和 'metrics'
+
+###### `clear_pair_data(pair_index: int)`
+- **功能**：清除指定 pair 的所有數據
+- **參數**：`pair_index` - pair 索引
+- **返回值**：成功返回 True，否則返回 False
+- **說明**：刪除該 pair 的所有監控數據和測試輸出
+
+###### `get_all_test_outputs(pair_index: int, role: str, start_time: Optional[str] = None, end_time: Optional[str] = None, include_metrics: bool = True)`
+- **功能**：獲取指定時間範圍內的所有測試輸出數據
+- **參數**：
+  - `pair_index`：pair 索引
+  - `role`：角色（'server' 或 'client'）
+  - `start_time`：起始時間（可選）
+  - `end_time`：結束時間（可選）
+  - `include_metrics`：是否包含 metrics 數據
+- **返回值**：測試輸出數據列表（List[Dict]）
+
+###### `get_specific_metrics(pair_index: int, role: str, metric_names: List[str], timestamp: Optional[str] = None)`
+- **功能**：獲取特定的 metrics 數據
+- **參數**：
+  - `pair_index`：pair 索引
+  - `role`：角色（'server' 或 'client'）
+  - `metric_names`：要查詢的 metric 名稱列表（例如 ['duration', 'ackDup']）
+  - `timestamp`：時間戳（可選，若不提供則返回最新的）
+- **返回值**：包含指定 metrics 的字典
+
+###### `get_pair_summary(pair_index: int)`
+- **功能**：獲取指定 pair 的數據摘要
+- **參數**：`pair_index` - pair 索引
+- **返回值**：摘要字典，包含：
+  - `pair_index`：pair 索引
+  - `monitor_count`：監控數據筆數
+  - `server_output_count`：Server 輸出筆數
+  - `client_output_count`：Client 輸出筆數
+
+###### `close()`
+- **功能**：關閉 Redis 連接
+- **說明**：釋放連接資源
+
+---
+
+### 5. config.py
+
+此模組提供配置管理功能，使用 dataclass 定義結構化配置。
+
+#### Dataclasses
+
+##### `Client`
+- **功能**：客戶端基本配置
+- **欄位**：
+  - `nic_pci: str`：網卡 PCI 位址
+  - `ip: str`：IP 位址
+  - `gw: str`：閘道位址
+
+##### `ClientConfig`
+- **功能**：客戶端詳細配置
+- **欄位**：
+  | 欄位 | 類型 | 預設值 | 說明 |
+  |------|------|--------|------|
+  | `client_nic_pci` | str | "" | 網卡 PCI 位址 |
+  | `client_nic_name` | str | "" | 網卡介面名稱 |
+  | `client_nic_driver` | str | "i40e" | 網卡驅動程式 |
+  | `client_ip` | str | "" | 客戶端 IP |
+  | `source_ip_nums` | int | 0 | 模擬源 IP 數量 |
+  | `client_gw` | str | "" | 客戶端閘道 |
+  | `client_duration` | str | "" | 測試持續時間 |
+  | `client_cpu_core` | int | 0 | CPU 核心數 |
+  | `tx_burst` | int | 0 | 傳送批次大小 |
+  | `launch_num` | int | 0 | 啟動連線數 |
+  | `cc` | str | "" | 併發連線數 |
+  | `keepalive` | str | "" | keepalive 間隔 |
+  | `rss` | bool | False | 是否啟用 RSS |
+  | `socket_mem` | int | 0 | 記憶體池大小 |
+  | `virtual_server_ip` | str | "" | 目標伺服器 IP |
+  | `virtual_server_port` | int | 0 | 目標伺服器埠 |
+  | `virtual_server_port_nums` | int | 1 | 伺服器埠數量 |
+
+##### `ServerConfig`
+- **功能**：伺服器詳細配置
+- **欄位**：
+  | 欄位 | 類型 | 預設值 | 說明 |
+  |------|------|--------|------|
+  | `server_nic_pci` | str | "" | 網卡 PCI 位址 |
+  | `server_nic_name` | str | "" | 網卡介面名稱 |
+  | `server_nic_driver` | str | "i40e" | 網卡驅動程式 |
+  | `server_ip` | str | "" | 伺服器 IP |
+  | `server_gw` | str | "" | 伺服器閘道 |
+  | `server_duration` | str | "" | 測試持續時間 |
+  | `server_cpu_core` | int | 0 | CPU 核心數 |
+  | `tx_burst` | int | 0 | 傳送批次大小 |
+  | `keepalive` | str | "" | keepalive 間隔 |
+  | `rss` | bool | False | 是否啟用 RSS |
+  | `socket_mem` | int | 0 | 記憶體池大小 |
+  | `listen_port` | int | 0 | 監聽埠號 |
+  | `listen_port_nums` | int | 1 | 監聽埠數量 |
+
+##### `TrafficGeneratorPair`
+- **功能**：流量產生器配對配置
+- **欄位**：
+  - `client: ClientConfig`：客戶端配置
+  - `server: ServerConfig`：伺服器配置
+  - `payload_size: int`：封包有效負載大小（預設：0）
+  - `protocol: str`：傳輸協定（預設："tcp"）
+
+##### `TrafficGenerator`
+- **功能**：流量產生器配置
+- **欄位**：
+  - `management_ip: str`：管理介面 IP
+  - `management_port: int`：管理介面埠號
+  - `username: str`：SSH 用戶名
+  - `password: str`：SSH 密碼
+  - `dpdk_path: str`：DPDK 安裝路徑
+  - `dperf_path: str`：DPerf 安裝路徑
+  - `hugepage_frames: int`：Hugepage 數量（預設：2）
+  - `hugepage_size: str`：Hugepage 大小（預設："1G"）
+  - `pairs: List[TrafficGeneratorPair]`：測試配對列表
+
+##### `TestConfig`
+- **功能**：測試配置
+- **欄位**：
+  - `apv_management_ip: str`：APV 管理 IP
+  - `apv_management_port: int`：APV 管理埠號
+  - `apv_username: str`：APV 用戶名
+  - `apv_password: str`：APV 密碼
+  - `apv_enable_password: str`：APV enable 密碼
+  - `traffic_generator: TrafficGenerator`：流量產生器配置
+
+#### Class: `Config`
+
+主配置類別，負責載入和管理所有配置。
+
+##### 初始化方法
+```python
+__init__(self, yaml_path: str = None)
+```
+- **功能**：初始化配置
+- **參數**：`yaml_path` - YAML 配置檔案路徑（可選，若提供則自動載入）
+
+##### 主要方法
+
+###### `from_yaml(yaml_path: str)`
+- **功能**：從 YAML 檔案載入配置
+- **參數**：`yaml_path` - YAML 配置檔案路徑
+- **返回值**：self（支持鏈式調用）
+- **說明**：解析 YAML 並建立對應的 dataclass 物件
+
+###### `to_dict()`
+- **功能**：將配置轉換為字典
+- **返回值**：配置字典（Dict[str, Any]）
+- **說明**：將所有 dataclass 結構轉換為可序列化的字典格式
+
+---
+
+### 6. APVSetup.py
+
+此模組負責 APV 負載均衡器的設定與管理。
+
+#### Class: `APVSetup`
+
+APV 負載均衡器設置類別，負責配置各種協定的負載均衡規則。
+
+##### 初始化方法
+```python
+__init__(self, config: Config, log_path: str = 'logs')
+```
+- **功能**：初始化 APV 設置
+- **參數**：
+  - `config`：配置物件
+  - `log_path`：日誌檔案路徑（預設：'logs'）
+- **說明**：從配置中提取 APV 連接資訊，建立 SSH 執行器
+
+##### 主要方法
+
+###### `connect()`
+- **功能**：建立與 APV 設備的 SSH 連接
+- **說明**：使用持久 session 模式連接
+
+###### `disconnect()`
+- **功能**：斷開與 APV 設備的連接
+
+###### `_execute_commands(commands: list, dry_run: bool = False)`
+- **功能**：執行指令陣列（私有方法）
+- **參數**：
+  - `commands`：要執行的指令列表
+  - `dry_run`：若為 True，僅列印指令不執行
+- **說明**：根據 dry_run 模式決定是列印還是實際執行指令
+
+###### `setupUDPLoadBalancer(pair_index: int, dry_run: bool = False, clear: bool = False)`
+- **功能**：設置 UDP 負載均衡器
+- **參數**：
+  - `pair_index`：pair 索引
+  - `dry_run`：是否為模擬執行模式
+  - `clear`：是否清除現有設定
+- **設定項目**：
+  - Real Server 配置
+  - Virtual Server 配置
+  - 負載均衡群組（使用 Round-Robin）
+  - 策略綁定
+
+###### `setupTCPLoadBalancer(pair_index: int, dry_run: bool = False, clear: bool = False)`
+- **功能**：設置 TCP 負載均衡器
+- **參數**：同 `setupUDPLoadBalancer`
+- **說明**：配置邏輯與 UDP 相似，但使用 TCP 協定
+
+###### `setupHTTPLoadBalancer(pair_index: int, dry_run: bool = False, clear: bool = False)`
+- **功能**：設置 HTTP 負載均衡器
+- **參數**：同 `setupUDPLoadBalancer`
+- **說明**：配置邏輯與 TCP 相似，但使用 HTTP 協定
+
+###### `setupEnv(dry_run: bool = False, clear: bool = False)`
+- **功能**：設定 APV 環境
+- **參數**：
+  - `dry_run`：是否為模擬執行模式
+  - `clear`：是否清除現有設定
+- **流程**：
+  1. 進入 enable 模式
+  2. 輸入 enable 密碼
+  3. 進入 config terminal
+  4. 根據每個 pair 的協定設置對應的負載均衡器
+  5. 儲存配置（write memory）
+
+#### 獨立函數
+
+###### `argParser()`
+- **功能**：命令列參數解析
+- **返回值**：解析後的參數物件
+- **支援參數**：
+  - `--dry-run`：模擬執行模式
+  - `--clear`：清除負載均衡設定
+  - `-c, --config`：配置檔案路徑
+
+---
+
+### 7. dperfSetup.py 補充方法
+
+以下是 `dperf` class 的額外方法（補充原有文檔）：
+
+##### Redis 整合方法
+
+###### `monitorStart()`
+- **功能**：開始監控 CPU 和 RAM 使用率
+- **說明**：
+  - 每秒記錄一次系統資源使用情況
+  - 同時寫入本地 CSV 檔案和 Redis（如果啟用）
+  - 在獨立線程中運行
+
+###### `monitorStop()`
+- **功能**：停止監控
+- **說明**：設置 monitoring 標誌為 False，使監控循環結束
+
+###### `get_redis_summary()`
+- **功能**：獲取 Redis 中該 pair 的數據摘要
+- **返回值**：摘要字典或 None（若 Redis 未連接）
+
+###### `get_redis_monitor_data(start_time=None, end_time=None)`
+- **功能**：從 Redis 獲取監控數據
+- **參數**：
+  - `start_time`：起始時間（可選）
+  - `end_time`：結束時間（可選）
+- **返回值**：監控數據列表
+
+###### `get_redis_test_output(role: str)`
+- **功能**：從 Redis 獲取測試輸出數據
+- **參數**：`role` - 角色（'server' 或 'client'）
+- **返回值**：測試輸出數據字典或 None
+
+##### 初始化方法更新
+```python
+__init__(self, config: Config, pair_index: int = 0, log_path: str = None, output_path: str = None, redis_host: str = "localhost", redis_port: int = 6379, redis_db: int = 0, enable_redis: bool = True)
+```
+- **新增參數**：
+  - `redis_host`：Redis 主機地址（預設：localhost）
+  - `redis_port`：Redis 端口（預設：6379）
+  - `redis_db`：Redis 數據庫編號（預設：0）
+  - `enable_redis`：是否啟用 Redis 儲存（預設：True）
 
 ---
 
