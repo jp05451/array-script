@@ -18,6 +18,13 @@ class APVSetup:
             log_path=f'{log_path}/apv.log',            
         )
     
+    def __del__(self):
+        """Destructor to automatically disconnect from the server"""
+        try:
+            self.disconnect()
+        except:
+            pass
+    
     def _execute_commands(self, commands: list, dry_run: bool = False):
         """執行指令陣列，根據 dry_run 模式決定是列印還是執行"""
         if dry_run:
@@ -126,7 +133,7 @@ class APVSetup:
         self._execute_commands(commands, dry_run)
         
     
-    def setupEnv(self, dry_run=False, clear=False):
+    def setupEnv(self, dry_run=False):
         self.ssh_apv.execute_command('enable',real_time=True)
         self.ssh_apv.execute_command(f'{self.apv_enable_password}',real_time=True)
         
@@ -135,13 +142,34 @@ class APVSetup:
             protocol = self.pairs[i].protocol.lower()
             if protocol == 'udp':
                 print('UDP')
-                self.setupUDPLoadBalancer(pair_index=i,dry_run=dry_run,clear=clear)
+                self.setupUDPLoadBalancer(pair_index=i,dry_run=dry_run,clear=False)
             elif protocol == 'tcp':
                 print('TCP')
-                self.setupTCPLoadBalancer(pair_index=i,dry_run=dry_run,clear=clear)
+                self.setupTCPLoadBalancer(pair_index=i,dry_run=dry_run,clear=False)
             elif protocol == 'http':
                 print('HTTP')
-                self.setupHTTPLoadBalancer(pair_index=i,dry_run=dry_run,clear=clear)
+                self.setupHTTPLoadBalancer(pair_index=i,dry_run=dry_run,clear=False)
+            else:
+                raise ValueError(f"Unsupported protocol: {protocol}")
+        if not dry_run:
+            self.ssh_apv.execute_command('write memory',real_time=True)
+            
+    def clearEnv(self, dry_run=False):
+        self.ssh_apv.execute_command('enable',real_time=True)
+        self.ssh_apv.execute_command(f'{self.apv_enable_password}',real_time=True)
+        
+        self.ssh_apv.execute_command('config terminal',real_time=True)
+        for i in range(len(self.pairs)):
+            protocol = self.pairs[i].protocol.lower()
+            if protocol == 'udp':
+                print('Clearing UDP')
+                self.setupUDPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
+            elif protocol == 'tcp':
+                print('Clearing TCP')
+                self.setupTCPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
+            elif protocol == 'http':
+                print('Clearing HTTP')
+                self.setupHTTPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
             else:
                 raise ValueError(f"Unsupported protocol: {protocol}")
         if not dry_run:
@@ -182,5 +210,8 @@ if __name__ == "__main__":
     config.from_yaml(args.config)
     apv_setup = APVSetup(config)
     apv_setup.connect()
-    apv_setup.setupEnv(dry_run=args.dry_run, clear=args.clear)
+    if args.clear:
+        apv_setup.clearEnv(dry_run=args.dry_run)
+    else:
+        apv_setup.setupEnv(dry_run=args.dry_run)
     apv_setup.disconnect()
