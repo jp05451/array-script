@@ -4,10 +4,7 @@ from ssh_executor import SSHExecutor
 from dperfSetup import dperf
 from config import Config
 from APVSetup import APVSetup
-
-def load_yaml_config(yaml_path):
-    """從 YAML 檔案載入配置"""
-    return Config.from_yaml(yaml_path)
+from trafficGenerator import TrafficGenerator
 
 def parse_arguments():
     """解析命令列參數"""
@@ -92,56 +89,51 @@ def argOverrideConfig(args, config):
         config.test.pairs.server.keepalive = args.packet_interval
         config.test.pairs.client.keepalive = args.packet_interval
 
+
+
 def main():
-    """主程式"""
     args = parse_arguments()
-
-    # 讀取配置
-    if args.config:
-        # 從 YAML 載入配置
-        config = Config(args.config)
-        print(f"已載入配置檔案: {args.config}")
-        if args.verbose:
-            print(f"  APV IP: {config.test.apv_management_ip}:{config.test.apv_management_port}")
-            print(f"  Traffic Generator IP: {config.test.traffic_generator.management_ip}:{config.test.traffic_generator.management_port}")
-            print(f"  Client IP: {config.test.traffic_generator.pairs[0].client.client_ip}")
-            print(f"  Server IP: {config.test.traffic_generator.pairs[0].server.server_ip}")
-    else:
-        exit("錯誤：未指定配置檔案")
-
-    # 處理輸出路徑參數
-    # log_path = None if args.log == 'STDOUT' else args.log
-    apv = APVSetup(config)
-    apv.connect()
-    apv.setupEnv(dry_run=False, clear=False)
     
-    avx = dperf(config,pair_index=0, log_path=args.log, output_path=args.output,enable_redis=False)
-    avx.connect()
-    avx.setupEnv()
+    # 載入配置
+    config = Config()
+    config.from_yaml(args.config)
+    apv=APVSetup(config)
+    apv.connect()
+    apv.setupEnv()
 
-    # 建立兩個執行緒分別連線到 server 和 client
+    # 建立 TrafficGenerator
+    tg = TrafficGenerator(
+        config=config,
+        enable_redis=True
+    )
+
+    # 連接
+    tg.connect()
+
     try:
-        avx.runPairTest()
-        print("=== Server 和 Client 執行緒已完成 ===\n")
-        apv.setupEnv(dry_run=False, clear=True)
+        # 設定環境
+        tg.setup_env()
 
-    except FileNotFoundError:
-        print(f"錯誤：找不到腳本文件 '{args.script}'")
-    except KeyboardInterrupt:
-        print("\n\n程式已被使用者中斷")
-    except paramiko.AuthenticationException:
-        print("錯誤：身份驗證失敗，請檢查用戶名和密碼")
-    except paramiko.SSHException as e:
-        print(f"SSH 錯誤：{e}")
-    except Exception as e:
-        print(f"發生錯誤：{e}")
-        if args.verbose:
-            import traceback
-            traceback.print_exc()
+        # 執行測試
+        results = tg.run_test()
+
+        print("\n" + "=" * 60)
+        print("測試結果摘要:")
+        print("=" * 60)
+
+        for pair_name, pair_result in results.items():
+            if pair_name == 'monitor_data':
+                print(f"\n監控數據筆數: {len(pair_result)}")
+            else:
+                print(f"\n{pair_name}:")
+                print(f"  Server: {pair_result.get('server')}")
+                print(f"  Client: {pair_result.get('client')}")
+
     finally:
-        avx.disconnect()
+        # 斷開連接
+        tg.disconnect()
+        apv.clearEnv()
         apv.disconnect()
-
 
 
 if __name__ == "__main__":
