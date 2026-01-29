@@ -68,36 +68,40 @@ class APVSetup:
 
         self._execute_commands(commands, dry_run)
         
+    def clearTCPLoadBalancer(self, pair_index, dry_run=False):
+        # Clean up commands - minimal parameters only
+        commands = [
+            f"no slb real tcp tcp_rs_{pair_index}",
+            "no slb virtual tcp tcp_slb_vs",
+            "no slb group method tcp_slb_rs_group",
+        ]
+        if dry_run:
+            print(f"Dry run: Cleaning up TCP Load Balancer for pair index {pair_index}")
+
+        self._execute_commands(commands, dry_run)
         
-        
-    def setupTCPLoadBalancer(self, pair_index, dry_run=False, clear=False):
-        if clear:
-            # Clean up commands - minimal parameters only
-            commands = [
-                f"no slb real tcp tcp_rs_{pair_index}",
-                "no slb virtual tcp tcp_slb_vs",
-                "no slb group method tcp_slb_rs_group",
-            ]
-        else:
-            # Setup commands - full parameters
-            commands = [
-                # setup TCP real servers
-                f"slb real tcp tcp_rs_{pair_index} {self.pairs[pair_index].server.server_ip} {self.pairs[pair_index].server.listen_port} 0 none",
-                f"slb real enable tcp_rs_{pair_index}",
-                # configure TCP virtual server
-                f'slb virtual tcp tcp_slb_vs {self.pairs[pair_index].client.virtual_server_ip} {self.pairs[pair_index].client.virtual_server_port}',
-                'slb virtual enable tcp_slb_vs',
-                # configure TCP load balancer group
-                'slb group method tcp_slb_rs_group rr',
-                f'slb group member tcp_slb_rs_group tcp_rs_{pair_index}',
-                'slb group enable tcp_slb_rs_group',
-                # configure TCP virtual server policy
-                'slb policy default tcp_slb_vs tcp_slb_rs_group'
-            ]
+    def setupTCPLoadBalancer(self, pair_index, dry_run=False):
+        # Setup commands - full parameters
+        commands = [
+            # setup TCP real servers
+            f"slb real tcp tcp_rs_{pair_index} {self.pairs[pair_index].server.server_ip} {self.pairs[pair_index].server.listen_port} 0 none",
+            f"slb real enable tcp_rs_{pair_index}",
+            
+            # configure TCP virtual server
+            f'slb virtual tcp tcp_slb_vs {self.pairs[pair_index].client.virtual_server_ip} {self.pairs[pair_index].client.virtual_server_port}',
+            'slb virtual enable tcp_slb_vs',
+            
+            # configure TCP load balancer group
+            'slb group method tcp_slb_rs_group rr',
+            f'slb group member tcp_slb_rs_group tcp_rs_{pair_index}',
+            'slb group enable tcp_slb_rs_group',
+            
+            # configure TCP virtual server policy
+            'slb policy default tcp_slb_vs tcp_slb_rs_group'
+        ]
 
         if dry_run:
-            action = "Cleaning up" if clear else "Setting up"
-            print(f"Dry run: {action} TCP Load Balancer for pair index {pair_index}")
+            print(f"Dry run: Setting up TCP Load Balancer for pair index {pair_index}")
 
         self._execute_commands(commands, dry_run)
         
@@ -169,7 +173,7 @@ class APVSetup:
                 self.setupUDPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
             elif protocol == 'tcp':
                 print('Clearing TCP')
-                self.setupTCPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
+                self.clearTCPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
             elif protocol == 'http':
                 print('Clearing HTTP')
                 self.clearHTTPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
