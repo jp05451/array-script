@@ -69,7 +69,7 @@ class TrafficGenerator:
             print(f"[TrafficGenerator] 已建立 Pair {i}")
 
     def connect(self):
-        """連接到遠端主機（包含 monitor 和所有 pair）"""
+        """連接到遠端主機（包含 monitor 和所有 pair)"""
         print("[TrafficGenerator] 開始連接...")
 
         # 連接 monitor
@@ -98,7 +98,7 @@ class TrafficGenerator:
 
         print("[TrafficGenerator] 所有連接已斷開")
 
-    def setup_env(self, pair_indices: list = None):
+    def setup_env(self, pair_indices: list|None = None):
         """設定測試環境
 
         Args:
@@ -119,8 +119,8 @@ class TrafficGenerator:
 
         print("[TrafficGenerator] 環境設定完成")
 
-    def run_test(self, pair_indices: list = None, enable_monitor: bool = True,
-                 parallel: bool = False, monitor_output_file: str = None):
+    def run_test(self, pair_indices: list|None = None, enable_monitor: bool = True,
+                 parallel: bool = False, monitor_output_file: str|None = None):
         """執行測試
 
         Args:

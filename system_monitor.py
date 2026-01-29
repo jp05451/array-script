@@ -74,7 +74,7 @@ class SystemMonitor:
         if self.redis_handler:
             self.redis_handler.close()
 
-    def start(self, output_file: str = None):
+    def start(self, output_file: str|None = None):
         """開始監控（在新執行緒中執行）
 
         Args:
@@ -97,7 +97,7 @@ class SystemMonitor:
             if self.monitor_thread.is_alive():
                 print("[SystemMonitor] 警告: 監控線程未能正常結束")
 
-    def _monitor_loop(self, output_file: str = None):
+    def _monitor_loop(self, output_file: str|None = None):
         """監控迴圈，每秒記錄一次 CPU 和 RAM 使用率
 
         Args:

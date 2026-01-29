@@ -13,6 +13,8 @@
   - [6. APVSetup.py](#6-apvsetuppy)
   - [7. dperfSetup.py 補充方法](#7-dperfsetuppy-補充方法)
   - [8. scan_functions.py](#8-scan_functionspy)
+  - [9. system_monitor.py](#9-system_monitorpy)
+  - [10. trafficGenerator.py](#10-trafficgeneratorpy)
 - [使用範例](#使用範例)
   - [基本使用](#基本使用)
   - [SSH 命令執行](#ssh-命令執行)
@@ -760,6 +762,142 @@ __init__(self, config: Config, pair_index: int = 0, log_path: str = None, output
   - `redis_port`：Redis 端口（預設：6379）
   - `redis_db`：Redis 數據庫編號（預設：0）
   - `enable_redis`：是否啟用 Redis 儲存（預設：True）
+
+---
+
+### 9. system_monitor.py
+
+此模組提供遠端主機系統資源監控功能，用於在測試期間追蹤 CPU 和 RAM 使用率。
+
+#### Class: `SystemMonitor`
+
+系統監控類別，用於監控遠端主機的 CPU 和 RAM 使用率。一台機器只需要一個 monitor 實例，可以被多個 pair 共享使用。
+
+##### 初始化方法
+```python
+__init__(self, management_ip: str, management_port: int, username: str, password: str, log_path: str = "./logs", redis_host: str = "localhost", redis_port: int = 6379, redis_db: int = 0, enable_redis: bool = True)
+```
+- **功能**：初始化系統監控器
+- **參數**：
+  - `management_ip`：遠端主機 IP 位址
+  - `management_port`：SSH 端口號
+  - `username`：SSH 登入用戶名
+  - `password`：SSH 登入密碼
+  - `log_path`：日誌輸出路徑（預設：`./logs`）
+  - `redis_host`：Redis 主機地址（預設：localhost）
+  - `redis_port`：Redis 端口號（預設：6379）
+  - `redis_db`：Redis 數據庫編號（預設：0）
+  - `enable_redis`：是否啟用 Redis 儲存（預設：True）
+
+##### 主要方法
+
+###### `connect()`
+- **功能**：建立與遠端主機的 SSH 連接
+
+###### `disconnect()`
+- **功能**：斷開與遠端主機的 SSH 連接
+
+###### `start(output_file: str = None)`
+- **功能**：在新線程中啟動監控
+- **參數**：`output_file` - 監控數據輸出檔案路徑（若為 None 則使用預設路徑）
+- **說明**：啟動獨立線程持續記錄 CPU 和 RAM 使用率
+
+###### `stop()`
+- **功能**：停止監控
+- **說明**：設置停止標誌並等待監控線程結束
+
+###### `_monitor_loop(output_file: str = None)`
+- **功能**：監控迴圈（私有方法）
+- **參數**：`output_file` - 監控數據輸出檔案路徑
+- **說明**：每秒記錄一次 CPU 和 RAM 使用率，同時寫入本地 CSV 檔案和 Redis（如果啟用）
+
+###### `get_data()`
+- **功能**：獲取監控數據
+- **返回值**：監控數據列表（list）
+
+###### `get_redis_monitor_data(start_time=None, end_time=None)`
+- **功能**：從 Redis 獲取監控數據
+- **參數**：
+  - `start_time`：起始時間（可選）
+  - `end_time`：結束時間（可選）
+- **返回值**：監控數據列表（list）
+
+###### `is_monitoring()`
+- **功能**：檢查監控是否正在進行中
+- **返回值**：布林值，True 表示監控中
+
+---
+
+### 10. trafficGenerator.py
+
+此模組提供流量產生器的統一管理介面，封裝多組 dperf pair 和共用的 SystemMonitor。
+
+#### Class: `TrafficGenerator`
+
+流量產生器管理類別，封裝多組 dperf pair 和一個共用的 SystemMonitor，提供統一的介面來管理流量測試。
+
+##### 初始化方法
+```python
+__init__(self, config: Config, log_path: str = "./logs", output_path: str = "./results", redis_host: str = "localhost", redis_port: int = 6379, redis_db: int = 0, enable_redis: bool = True)
+```
+- **功能**：初始化流量產生器，建立多組 dperf pair 和 SystemMonitor
+- **參數**：
+  - `config`：配置物件，包含所有測試參數
+  - `log_path`：日誌輸出路徑（預設：`./logs`）
+  - `output_path`：結果輸出路徑（預設：`./results`）
+  - `redis_host`：Redis 主機地址（預設：localhost）
+  - `redis_port`：Redis 端口號（預設：6379）
+  - `redis_db`：Redis 數據庫編號（預設：0）
+  - `enable_redis`：是否啟用 Redis 儲存（預設：True）
+
+##### 主要方法
+
+###### `connect()`
+- **功能**：建立與遠端主機的連接
+- **說明**：同時連接 SystemMonitor 和所有 dperf pair
+
+###### `disconnect()`
+- **功能**：斷開所有連接
+- **說明**：斷開所有 dperf pair 和 SystemMonitor 的連接
+
+###### `setup_env(pair_indices: list = None)`
+- **功能**：設定測試環境
+- **參數**：`pair_indices` - 要設定的 pair 索引列表（若為 None 則設定所有 pair）
+- **說明**：依序對指定的 pair 設定 DPDK 環境（hugepages、綁定 NIC、生成配置檔）
+
+###### `run_test(pair_indices: list = None, enable_monitor: bool = True, parallel: bool = False, monitor_output_file: str = None)`
+- **功能**：執行流量測試
+- **參數**：
+  - `pair_indices`：要測試的 pair 索引列表（若為 None 則測試所有 pair）
+  - `enable_monitor`：是否啟用系統監控（預設：True）
+  - `parallel`：是否平行執行多組 pair 測試（預設：False）
+  - `monitor_output_file`：監控數據輸出檔案路徑
+- **返回值**：測試結果字典，包含各 pair 的 server/client 輸出和監控數據
+- **說明**：根據 parallel 參數決定使用循序或平行模式執行測試
+
+###### `_run_sequential(pair_indices: list)`
+- **功能**：循序執行測試（私有方法）
+- **參數**：`pair_indices` - 要測試的 pair 索引列表
+- **返回值**：測試結果字典
+
+###### `_run_parallel(pair_indices: list)`
+- **功能**：平行執行測試（私有方法）
+- **參數**：`pair_indices` - 要測試的 pair 索引列表
+- **返回值**：測試結果字典
+- **說明**：使用多線程同時執行多組 pair 測試
+
+###### `get_pair(pair_index: int)`
+- **功能**：取得指定的 dperf pair 實例
+- **參數**：`pair_index` - pair 索引
+- **返回值**：`dperf` 實例，若索引無效則返回 None
+
+###### `get_monitor()`
+- **功能**：取得 SystemMonitor 實例
+- **返回值**：`SystemMonitor` 實例
+
+###### `get_pair_count()`
+- **功能**：取得 pair 數量
+- **返回值**：整數，pair 的總數
 
 ---
 
