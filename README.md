@@ -963,3 +963,204 @@ pairs:
 ## 授權
 
 請參考專案授權文件。
+
+<!-- FUNCTION_SCAN_BEGIN -->
+## 專案函式掃描結果
+
+> 掃描到 **8** 個 Python 檔案，共 **18** 個 class、**5** 個 top-level function、**93** 個 method (總計 **98** 個 function)
+
+| 檔案 | Classes | Top-level Functions | Methods | 合計 |
+|------|---------|--------------------:|--------:|-----:|
+| `APVSetup.py` | 1 | 1 | 10 | 11 |
+| `RedisDB.py` | 1 | 0 | 11 | 11 |
+| `config.py` | 7 | 0 | 3 | 3 |
+| `dperfSetup.py` | 1 | 1 | 18 | 19 |
+| `main.py` | 0 | 3 | 0 | 3 |
+| `output_handler.py` | 1 | 0 | 11 | 11 |
+| `ssh_executor.py` | 6 | 0 | 30 | 30 |
+| `trafficGenerator.py` | 1 | 0 | 10 | 10 |
+
+### `APVSetup.py`
+
+**Top-level Functions:**
+
+- `argParser()` (line 184)
+
+**Class `APVSetup`** (line 5):
+
+- `__init__()`
+- `__del__()`
+- `_execute_commands()`
+- `setupUDPLoadBalancer()`
+- `setupTCPLoadBalancer()`
+- `setupHTTPLoadBalancer()`
+- `setupEnv()`
+- `clearEnv()`
+- `connect()`
+- `disconnect()`
+
+### `RedisDB.py`
+
+**Class `RedisHandler`** (line 9):
+
+- `__init__()`
+- `is_connected()`
+- `save_monitor_data()`
+- `save_test_output()`
+- `get_monitor_data()`
+- `get_test_output()`
+- `clear_pair_data()`
+- `get_all_test_outputs()`
+- `get_specific_metrics()`
+- `get_pair_summary()`
+- `close()`
+
+### `config.py`
+
+**Class `Client`** (line 6):
+
+- _(no methods)_
+
+**Class `ClientConfig`** (line 14):
+
+- _(no methods)_
+
+**Class `ServerConfig`** (line 36):
+
+- _(no methods)_
+
+**Class `TrafficGeneratorPair`** (line 54):
+
+- _(no methods)_
+
+**Class `TrafficGenerator`** (line 63):
+
+- _(no methods)_
+
+**Class `TestConfig`** (line 77):
+
+- _(no methods)_
+
+**Class `Config`** (line 87):
+
+- `__init__()`
+- `from_yaml()`
+- `to_dict()`
+
+### `dperfSetup.py`
+
+**Top-level Functions:**
+
+- `argParser()` (line 551)
+
+**Class `dperf`** (line 12):
+
+- `__init__()`
+- `__del__()`
+- `connect()`
+- `disconnect()`
+- `generateServerConfig()`
+- `generateClientConfig()`
+- `runPairTest()`
+- `outputResults()`
+- `serverStart()`
+- `clientStart()`
+- `parseOutput()`
+- `bindNICs()`
+- `unbindNICs()`
+- `setHugePages()`
+- `setupConfig()`
+- `setupEnv()`
+- `get_redis_summary()`
+- `get_redis_test_output()`
+
+### `main.py`
+
+**Top-level Functions:**
+
+- `parse_arguments()` (line 9)
+- `argOverrideConfig()` (line 72)
+- `main()` (line 94)
+
+### `output_handler.py`
+
+**Class `OutputHandler`** (line 9):
+
+- `clean_ansi()`
+- `__init__()`
+- `write()`
+- `print_header()`
+- `print_footer()`
+- `print_exit_status()`
+- `print_output()`
+- `print_error()`
+- `close()`
+- `__enter__()`
+- `__exit__()`
+
+### `ssh_executor.py`
+
+**Class `SSHConnectionManager`** (line 13):
+
+- `__init__()`
+- `connect()`
+- `close()`
+- `is_connected()`
+- `get_client()`
+- `__enter__()`
+- `__exit__()`
+
+**Class `ScriptReader`** (line 76):
+
+- `read_script()`
+
+**Class `SignalHandler`** (line 94):
+
+- `__init__()`
+- `setup()`
+- `stop()`
+- `restore()`
+
+**Class `RealTimeStreamReader`** (line 134):
+
+- `__init__()`
+- `read()`
+- `_read_remaining()`
+
+**Class `CommandExecutor`** (line 189):
+
+- `__init__()`
+- `execute_simple()`
+- `execute_realtime()`
+- `start_session()`
+- `stop_session()`
+- `execute_in_session()`
+- `is_session_active()`
+
+**Class `SSHExecutor`** (line 318):
+
+- `__init__()`
+- `connect()`
+- `connect_session()`
+- `execute_script()`
+- `execute_command()`
+- `close()`
+- `__enter__()`
+- `__exit__()`
+
+### `trafficGenerator.py`
+
+**Class `TrafficGenerator`** (line 9):
+
+- `__init__()`
+- `connect()`
+- `disconnect()`
+- `setup_env()`
+- `run_test()`
+- `_run_sequential()`
+- `_run_parallel()`
+- `get_pair()`
+- `get_monitor()`
+- `get_pair_count()`
+
+<!-- FUNCTION_SCAN_END -->
