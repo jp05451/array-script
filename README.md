@@ -34,7 +34,8 @@
 
 此模組負責 DPerf 測試的完整設定與執行流程。
 
-#### Class: `dperf`
+<details>
+<summary><b>Class: dperf</b></summary>
 
 DPerf 測試的主要控制類別，負責管理整個測試生命週期。
 
@@ -139,13 +140,16 @@ __init__(self, config: Config, pair_index: int = 0, log_path: str = None, output
 - **返回值**：配置檔字串
 - **配置項目**：mode、tx_burst、launch_num、cpu、rss、socket_mem、protocol、payload_size、duration、cc、keepalive、port、client、server、listen 等
 
+</details>
+
 ---
 
 ### 2. ssh_executor.py
 
 此模組提供 SSH 連接管理和遠端命令執行功能。
 
-#### Class: `SSHConnectionManager`
+<details>
+<summary><b>Class: SSHConnectionManager</b></summary>
 
 SSH 連接管理器，負責建立和維護 SSH 連接。
 
@@ -180,9 +184,12 @@ __init__(self, host: str, port: int, user: str, password: str)
 ###### `__enter__()` / `__exit__()`
 - **功能**：支持 with 語句的上下文管理
 
+</details>
+
 ---
 
-#### Class: `ScriptReader`
+<details>
+<summary><b>Class: ScriptReader</b></summary>
 
 腳本讀取器，用於讀取本地腳本檔案。
 
@@ -193,9 +200,12 @@ __init__(self, host: str, port: int, user: str, password: str)
 - **參數**：`script_path` - 腳本檔案路徑
 - **返回值**：腳本內容字串
 
+</details>
+
 ---
 
-#### Class: `SignalHandler`
+<details>
+<summary><b>Class: SignalHandler</b></summary>
 
 信號處理器，用於處理中斷信號（目前暫時關閉以避免多線程衝突）。
 
@@ -212,9 +222,12 @@ __init__(self, host: str, port: int, user: str, password: str)
 ###### `restore()`
 - **功能**：恢復原始信號處理器
 
+</details>
+
 ---
 
-#### Class: `RealTimeStreamReader`
+<details>
+<summary><b>Class: RealTimeStreamReader</b></summary>
 
 實時流讀取器，用於即時讀取和顯示命令輸出。
 
@@ -240,9 +253,12 @@ __init__(self, stdout, stderr, signal_handler: SignalHandler, output_handler: Ou
 ###### `_read_remaining()`
 - **功能**：讀取剩餘的輸出內容（私有方法）
 
+</details>
+
 ---
 
-#### Class: `CommandExecutor`
+<details>
+<summary><b>Class: CommandExecutor</b></summary>
 
 命令執行器，負責在遠端主機上執行命令。
 
@@ -283,9 +299,12 @@ __init__(self, ssh_client: paramiko.SSHClient, output_handler: OutputHandler)
 - **功能**：檢查 session 是否活躍
 - **返回值**：布林值
 
+</details>
+
 ---
 
-#### Class: `SSHExecutor`
+<details>
+<summary><b>Class: SSHExecutor</b></summary>
 
 SSH 執行器（高層封裝），整合所有 SSH 相關功能的主要介面。
 
@@ -337,13 +356,16 @@ __init__(self, host: str, port: int, user: str, password: str, log_path: Optiona
 ###### `__enter__()` / `__exit__()`
 - **功能**：支持 with 語句的上下文管理
 
+</details>
+
 ---
 
 ### 3. output_handler.py
 
 此模組提供輸出處理功能，支援輸出到 stdout 或檔案。
 
-#### Class: `OutputHandler`
+<details>
+<summary><b>Class: OutputHandler</b></summary>
 
 輸出處理器，統一管理所有輸出操作。
 
@@ -416,13 +438,16 @@ __init__(self, output_path: Optional[str] = None)
 - **功能**：支持 with 語句的上下文管理
 - **說明**：確保檔案資源正確釋放
 
+</details>
+
 ---
 
 ### 4. RedisDB.py
 
 此模組提供 Redis 資料庫處理功能，用於儲存和檢索測試監控數據。
 
-#### Class: `RedisHandler`
+<details>
+<summary><b>Class: RedisHandler</b></summary>
 
 Redis 資料庫處理器，負責管理測試數據的持久化儲存。
 
@@ -526,13 +551,16 @@ __init__(self, host: str = "localhost", port: int = 6379, db: int = 0, password:
 - **功能**：關閉 Redis 連接
 - **說明**：釋放連接資源
 
+</details>
+
 ---
 
 ### 5. config.py
 
 此模組提供配置管理功能，使用 dataclass 定義結構化配置。
 
-#### Dataclasses
+<details>
+<summary><b>Dataclasses</b></summary>
 
 ##### `Client`
 - **功能**：客戶端基本配置
@@ -614,7 +642,10 @@ __init__(self, host: str = "localhost", port: int = 6379, db: int = 0, password:
   - `apv_enable_password: str`：APV enable 密碼
   - `traffic_generator: TrafficGenerator`：流量產生器配置
 
-#### Class: `Config`
+</details>
+
+<details>
+<summary><b>Class: Config</b></summary>
 
 主配置類別，負責載入和管理所有配置。
 
@@ -638,13 +669,16 @@ __init__(self, yaml_path: str = None)
 - **返回值**：配置字典（Dict[str, Any]）
 - **說明**：將所有 dataclass 結構轉換為可序列化的字典格式
 
+</details>
+
 ---
 
 ### 6. APVSetup.py
 
 此模組負責 APV 負載均衡器的設定與管理。
 
-#### Class: `APVSetup`
+<details>
+<summary><b>Class: APVSetup</b></summary>
 
 APV 負載均衡器設置類別，負責配置各種協定的負載均衡規則。
 
@@ -708,6 +742,8 @@ __init__(self, config: Config, log_path: str = 'logs')
   4. 根據每個 pair 的協定設置對應的負載均衡器
   5. 儲存配置（write memory）
 
+</details>
+
 #### 獨立函數
 
 ###### `argParser()`
@@ -769,7 +805,8 @@ __init__(self, config: Config, pair_index: int = 0, log_path: str = None, output
 
 此模組提供遠端主機系統資源監控功能，用於在測試期間追蹤 CPU 和 RAM 使用率。
 
-#### Class: `SystemMonitor`
+<details>
+<summary><b>Class: SystemMonitor</b></summary>
 
 系統監控類別，用於監控遠端主機的 CPU 和 RAM 使用率。一台機器只需要一個 monitor 實例，可以被多個 pair 共享使用。
 
@@ -826,13 +863,16 @@ __init__(self, management_ip: str, management_port: int, username: str, password
 - **功能**：檢查監控是否正在進行中
 - **返回值**：布林值，True 表示監控中
 
+</details>
+
 ---
 
 ### 10. trafficGenerator.py
 
 此模組提供流量產生器的統一管理介面，封裝多組 dperf pair 和共用的 SystemMonitor。
 
-#### Class: `TrafficGenerator`
+<details>
+<summary><b>Class: TrafficGenerator</b></summary>
 
 流量產生器管理類別，封裝多組 dperf pair 和一個共用的 SystemMonitor，提供統一的介面來管理流量測試。
 
@@ -898,6 +938,8 @@ __init__(self, config: Config, log_path: str = "./logs", output_path: str = "./r
 ###### `get_pair_count()`
 - **功能**：取得 pair 數量
 - **返回值**：整數，pair 的總數
+
+</details>
 
 ---
 
