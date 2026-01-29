@@ -1129,7 +1129,7 @@ pairs:
 <!-- FUNCTION_SCAN_BEGIN -->
 ## 專案函式掃描結果
 
-> 掃描到 **8** 個 Python 檔案，共 **18** 個 class、**5** 個 top-level function、**93** 個 method (總計 **98** 個 function)
+> 掃描到 **9** 個 Python 檔案，共 **19** 個 class、**5** 個 top-level function、**102** 個 method (總計 **107** 個 function)
 
 | 檔案 | Classes | Top-level Functions | Methods | 合計 |
 |------|---------|--------------------:|--------:|-----:|
@@ -1140,6 +1140,7 @@ pairs:
 | `main.py` | 0 | 3 | 0 | 3 |
 | `output_handler.py` | 1 | 0 | 11 | 11 |
 | `ssh_executor.py` | 6 | 0 | 30 | 30 |
+| `system_monitor.py` | 1 | 0 | 9 | 9 |
 | `trafficGenerator.py` | 1 | 0 | 10 | 10 |
 
 ### `APVSetup.py`
@@ -1309,6 +1310,20 @@ pairs:
 - `close()` (line 423)
 - `__enter__()` (line 431)
 - `__exit__()` (line 437)
+
+### `system_monitor.py`
+
+**Class `SystemMonitor`** (line 11):
+
+- `__init__()` (line 17)
+- `connect()` (line 67)
+- `disconnect()` (line 71)
+- `start()` (line 77)
+- `stop()` (line 90)
+- `_monitor_loop()` (line 100)
+- `get_data()` (line 212)
+- `get_redis_monitor_data()` (line 220)
+- `is_monitoring()` (line 235)
 
 ### `trafficGenerator.py`
 
