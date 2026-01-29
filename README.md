@@ -2,6 +2,30 @@
 
 此專案提供自動化腳本來執行 DPerf 網路效能測試，透過 SSH 連接遠端主機，自動配置 DPDK 環境並運行測試。
 
+## 目錄
+
+- [核心模組說明](#核心模組說明)
+  - [1. dperfSetup.py](#1-dperfsetuppy)
+  - [2. ssh_executor.py](#2-ssh_executorpy)
+  - [3. output_handler.py](#3-output_handlerpy)
+  - [4. RedisDB.py](#4-redisdbpy)
+  - [5. config.py](#5-configpy)
+  - [6. APVSetup.py](#6-apvsetuppy)
+  - [7. dperfSetup.py 補充方法](#7-dperfsetuppy-補充方法)
+  - [8. scan_functions.py](#8-scan_functionspy)
+- [使用範例](#使用範例)
+  - [基本使用](#基本使用)
+  - [SSH 命令執行](#ssh-命令執行)
+  - [自訂輸出處理](#自訂輸出處理)
+- [配置檔案說明 (config.yaml)](#配置檔案說明-configyaml)
+  - [基本結構](#基本結構)
+  - [主要配置區塊](#主要配置區塊)
+  - [配置建議](#配置建議)
+  - [多組 Pair 配置](#多組-pair-配置)
+- [系統需求](#系統需求)
+- [注意事項](#注意事項)
+- [專案函式掃描結果](#專案函式掃描結果)
+
 ## 核心模組說明
 
 ### 1. dperfSetup.py
@@ -988,32 +1012,32 @@ pairs:
 
 **Class `APVSetup`** (line 5):
 
-- `__init__()`
-- `__del__()`
-- `_execute_commands()`
-- `setupUDPLoadBalancer()`
-- `setupTCPLoadBalancer()`
-- `setupHTTPLoadBalancer()`
-- `setupEnv()`
-- `clearEnv()`
-- `connect()`
-- `disconnect()`
+- `__init__()` (line 6)
+- `__del__()` (line 21)
+- `_execute_commands()` (line 28)
+- `setupUDPLoadBalancer()` (line 37)
+- `setupTCPLoadBalancer()` (line 73)
+- `setupHTTPLoadBalancer()` (line 104)
+- `setupEnv()` (line 136)
+- `clearEnv()` (line 157)
+- `connect()` (line 178)
+- `disconnect()` (line 181)
 
 ### `RedisDB.py`
 
 **Class `RedisHandler`** (line 9):
 
-- `__init__()`
-- `is_connected()`
-- `save_monitor_data()`
-- `save_test_output()`
-- `get_monitor_data()`
-- `get_test_output()`
-- `clear_pair_data()`
-- `get_all_test_outputs()`
-- `get_specific_metrics()`
-- `get_pair_summary()`
-- `close()`
+- `__init__()` (line 12)
+- `is_connected()` (line 50)
+- `save_monitor_data()` (line 54)
+- `save_test_output()` (line 101)
+- `get_monitor_data()` (line 154)
+- `get_test_output()` (line 196)
+- `clear_pair_data()` (line 248)
+- `get_all_test_outputs()` (line 279)
+- `get_specific_metrics()` (line 338)
+- `get_pair_summary()` (line 383)
+- `close()` (line 421)
 
 ### `config.py`
 
@@ -1043,9 +1067,9 @@ pairs:
 
 **Class `Config`** (line 87):
 
-- `__init__()`
-- `from_yaml()`
-- `to_dict()`
+- `__init__()` (line 89)
+- `from_yaml()` (line 100)
+- `to_dict()` (line 191)
 
 ### `dperfSetup.py`
 
@@ -1055,24 +1079,24 @@ pairs:
 
 **Class `dperf`** (line 12):
 
-- `__init__()`
-- `__del__()`
-- `connect()`
-- `disconnect()`
-- `generateServerConfig()`
-- `generateClientConfig()`
-- `runPairTest()`
-- `outputResults()`
-- `serverStart()`
-- `clientStart()`
-- `parseOutput()`
-- `bindNICs()`
-- `unbindNICs()`
-- `setHugePages()`
-- `setupConfig()`
-- `setupEnv()`
-- `get_redis_summary()`
-- `get_redis_test_output()`
+- `__init__()` (line 13)
+- `__del__()` (line 64)
+- `connect()` (line 71)
+- `disconnect()` (line 77)
+- `generateServerConfig()` (line 87)
+- `generateClientConfig()` (line 125)
+- `runPairTest()` (line 166)
+- `outputResults()` (line 198)
+- `serverStart()` (line 297)
+- `clientStart()` (line 337)
+- `parseOutput()` (line 380)
+- `bindNICs()` (line 430)
+- `unbindNICs()` (line 452)
+- `setHugePages()` (line 478)
+- `setupConfig()` (line 500)
+- `setupEnv()` (line 521)
+- `get_redis_summary()` (line 535)
+- `get_redis_test_output()` (line 543)
 
 ### `main.py`
 
@@ -1086,81 +1110,81 @@ pairs:
 
 **Class `OutputHandler`** (line 9):
 
-- `clean_ansi()`
-- `__init__()`
-- `write()`
-- `print_header()`
-- `print_footer()`
-- `print_exit_status()`
-- `print_output()`
-- `print_error()`
-- `close()`
-- `__enter__()`
-- `__exit__()`
+- `clean_ansi()` (line 13)
+- `__init__()` (line 26)
+- `write()` (line 51)
+- `print_header()` (line 69)
+- `print_footer()` (line 74)
+- `print_exit_status()` (line 82)
+- `print_output()` (line 86)
+- `print_error()` (line 92)
+- `close()` (line 97)
+- `__enter__()` (line 103)
+- `__exit__()` (line 107)
 
 ### `ssh_executor.py`
 
 **Class `SSHConnectionManager`** (line 13):
 
-- `__init__()`
-- `connect()`
-- `close()`
-- `is_connected()`
-- `get_client()`
-- `__enter__()`
-- `__exit__()`
+- `__init__()` (line 16)
+- `connect()` (line 32)
+- `close()` (line 48)
+- `is_connected()` (line 55)
+- `get_client()` (line 59)
+- `__enter__()` (line 65)
+- `__exit__()` (line 70)
 
 **Class `ScriptReader`** (line 76):
 
-- `read_script()`
+- `read_script()` (line 80)
 
 **Class `SignalHandler`** (line 94):
 
-- `__init__()`
-- `setup()`
-- `stop()`
-- `restore()`
+- `__init__()` (line 97)
+- `setup()` (line 101)
+- `stop()` (line 122)
+- `restore()` (line 126)
 
 **Class `RealTimeStreamReader`** (line 134):
 
-- `__init__()`
-- `read()`
-- `_read_remaining()`
+- `__init__()` (line 137)
+- `read()` (line 158)
+- `_read_remaining()` (line 182)
 
 **Class `CommandExecutor`** (line 189):
 
-- `__init__()`
-- `execute_simple()`
-- `execute_realtime()`
-- `start_session()`
-- `stop_session()`
-- `execute_in_session()`
-- `is_session_active()`
+- `__init__()` (line 192)
+- `execute_simple()` (line 205)
+- `execute_realtime()` (line 223)
+- `start_session()` (line 242)
+- `stop_session()` (line 258)
+- `execute_in_session()` (line 267)
+- `is_session_active()` (line 308)
 
 **Class `SSHExecutor`** (line 318):
 
-- `__init__()`
-- `connect()`
-- `connect_session()`
-- `execute_script()`
-- `execute_command()`
-- `close()`
-- `__enter__()`
-- `__exit__()`
+- `__init__()` (line 321)
+- `connect()` (line 348)
+- `connect_session()` (line 362)
+- `execute_script()` (line 366)
+- `execute_command()` (line 398)
+- `close()` (line 423)
+- `__enter__()` (line 431)
+- `__exit__()` (line 437)
 
 ### `trafficGenerator.py`
 
 **Class `TrafficGenerator`** (line 9):
 
-- `__init__()`
-- `connect()`
-- `disconnect()`
-- `setup_env()`
-- `run_test()`
-- `_run_sequential()`
-- `_run_parallel()`
-- `get_pair()`
-- `get_monitor()`
-- `get_pair_count()`
+- `__init__()` (line 16)
+- `connect()` (line 71)
+- `disconnect()` (line 86)
+- `setup_env()` (line 101)
+- `run_test()` (line 122)
+- `_run_sequential()` (line 165)
+- `_run_parallel()` (line 184)
+- `get_pair()` (line 213)
+- `get_monitor()` (line 226)
+- `get_pair_count()` (line 234)
 
 <!-- FUNCTION_SCAN_END -->

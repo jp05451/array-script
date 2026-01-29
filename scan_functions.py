@@ -25,7 +25,7 @@ def scan_python_file(filepath: str) -> dict:
             methods = []
             for item in ast.iter_child_nodes(node):
                 if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    methods.append(item.name)
+                    methods.append({"name": item.name, "line": item.lineno})
             classes.append({"name": node.name, "methods": methods, "line": node.lineno})
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             functions.append({"name": node.name, "line": node.lineno})
@@ -105,7 +105,7 @@ def generate_markdown(results: list) -> str:
             lines.append("")
             if cls["methods"]:
                 for m in cls["methods"]:
-                    lines.append(f"- `{m}()`")
+                    lines.append(f"- `{m['name']}()` (line {m['line']})")
             else:
                 lines.append("- _(no methods)_")
             lines.append("")
