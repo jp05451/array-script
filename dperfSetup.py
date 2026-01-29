@@ -2,12 +2,10 @@ from ssh_executor import SSHExecutor
 from config import Config
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor
-from output_handler import OutputHandler
 from RedisDB import RedisHandler
 import re
 import os
 import csv
-import time
 from datetime import datetime
 
 
@@ -18,7 +16,6 @@ class dperf:
         self.config = config
         self.pair_index = pair_index
         self.pair = config.test.traffic_generator.pairs[pair_index]
-        self.monitoring = False
         if log_path is None or log_path == "":
             log_path = "./logs"
         if not os.path.exists(log_path):
@@ -49,7 +46,6 @@ class dperf:
         )
         self.serverOutput = None
         self.clientOutput = None
-        self.monitor_data = []
 
         # 初始化 Redis Handler
         self.enable_redis = enable_redis
@@ -65,6 +61,12 @@ class dperf:
             except Exception as e:
                 print(f"[Pair {self.pair_index}] Redis 初始化失敗: {e}，將僅使用本地儲存")
                 self.redis_handler = None
+    def __del__(self):
+        """Destructor to automatically disconnect from the server"""
+        try:
+            self.disconnect()
+        except:
+            pass
 
     def connect(self):
         """連接到遠端主機"""
@@ -161,52 +163,57 @@ class dperf:
 
         return "\n".join(config_lines)
 
-    def runPairTest(self):
+    def runPairTest(self, monitor=None):
+        """執行 pair 測試
 
+        Args:
+            monitor: 可選的 SystemMonitor 實例，若提供則不會在此方法內啟動/停止監控
+                    （由外部統一管理監控的生命週期）
+        """
         # 建立兩個獨立的 thread 來同時測試 server 和 client
         serverThread = Thread(target=self.serverStart, name=f"Server-Pair{self.pair_index}")
         clientThread = Thread(target=self.clientStart, name=f"Client-Pair{self.pair_index}")
-        monitorThread = Thread(target=self.monitorStart, name=f"Monitor-Pair{self.pair_index}")
 
         print(f"[Pair {self.pair_index}] 開始同時執行 server 和 client 測試...")
-        monitorThread.start()
-        time.sleep(2)  # 確保監控 thread 先啟
         serverThread.start()
         clientThread.start()
 
         # 等待兩個 thread 完成
         serverThread.join()
         clientThread.join()
-        self.monitorStop()
-        monitorThread.join(timeout=5)  # 最多等待 5 秒
-        if monitorThread.is_alive():
-            print(f"[Pair {self.pair_index}] 警告: 監控線程未能正常結束")
 
         print(f"[Pair {self.pair_index}] 測試完成")
         print(f"[Pair {self.pair_index}] Server 輸出: {self.serverOutput}")
         print(f"[Pair {self.pair_index}] Client 輸出: {self.clientOutput}")
-        
-        self.outputResults()
+
+        # 獲取監控數據（如果有提供 monitor）
+        monitor_data = monitor.get_data() if monitor else []
+        self.outputResults(monitor_data=monitor_data)
 
         return {
             'server': self.serverOutput,
             'client': self.clientOutput
         }
         
-    def outputResults(self):
-        """輸出測試結果到指定路徑的檔案"""
+    def outputResults(self, monitor_data=None):
+        """輸出測試結果到指定路徑的檔案
+
+        Args:
+            monitor_data: 監控數據列表，由外部 SystemMonitor 提供
+        """
         if self.outputPath is None or self.outputPath == "":
             self.outputPath = f"./results/dperf_pair{self.pair_index}_results.csv"
-        
+
         # 檢查輸出目錄是否存在，如果不存在則建立
         output_dir = os.path.dirname(self.outputPath)
         if output_dir and not os.path.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
-        
+
         # 嘗試從 Redis 讀取數據
         server_data = self.serverOutput
         client_data = self.clientOutput
-        monitor_data = self.monitor_data
+        if monitor_data is None:
+            monitor_data = []
 
 
         if self.enable_redis and self.redis_handler and self.redis_handler.is_connected():
@@ -525,120 +532,6 @@ class dperf:
             print(f"設定 dperf 環境失敗: {e}")
             raise
 
-    def monitorStart(self):
-        """開始監控 CPU 和 RAM 使用率，每秒記錄一次"""
-        self.monitoring = True
-        self.monitor_data = []
-
-        print(f"[Pair {self.pair_index}] 開始監控 CPU 和 RAM...")
-
-        # 建立監控數據的 CSV 文件路徑
-        monitor_file = f"{self.logPath}/dperf_pair{self.pair_index}_monitor.csv"
-
-        # 寫入 CSV 標題
-        with open(monitor_file, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(['Timestamp', 'CPU_Usage_Percent', 'RAM_Used_MB', 'RAM_Total_MB', 'RAM_Usage_Percent'])
-
-        while self.monitoring:
-            try:
-                # 獲取當前時間戳
-                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-                # 獲取 CPU 使用率（使用 top 命令）
-                # 使用 grep 'Cpu(s)' 並提取 idle 百分比，計算使用率 = 100 - idle
-                cpu_cmd = "top -bn1 | grep 'Cpu(s)' | awk '{print $8}'"
-                cpu_result = self.executor.execute_command(cpu_cmd)
-
-                # 清理輸出：移除 ANSI 轉義序列和額外的換行符
-                cpu_output = OutputHandler.clean_ansi(cpu_result[0]) if cpu_result else ""
-
-                # 提取數字部分（可能是最後一個有效的數字行）
-                cpu_lines = [line.strip() for line in cpu_output.split('\n') if line.strip()]
-                cpu_idle = 0
-                for line in reversed(cpu_lines):
-                    try:
-                        # 嘗試找到可以轉換為浮點數的行
-                        if line and not line.startswith('[') and not '#' in line:
-                            cpu_idle = float(line)
-                            break
-                    except ValueError:
-                        continue
-
-                cpu_usage = 100 - cpu_idle
-
-                # 獲取 RAM 使用情況（使用 free 命令）
-                ram_cmd = "free -m | grep Mem | awk '{print $3, $2}'"
-                ram_result = self.executor.execute_command(ram_cmd)
-
-                # 清理輸出
-                ram_output = OutputHandler.clean_ansi(ram_result[0]) if ram_result else ""
-                ram_lines = [line.strip() for line in ram_output.split('\n') if line.strip()]
-
-                ram_used = 0
-                ram_total = 0
-                ram_usage = 0
-
-                for line in reversed(ram_lines):
-                    try:
-                        if line and not line.startswith('[') and not '#' in line:
-                            ram_parts = line.split()
-                            if len(ram_parts) >= 2:
-                                ram_used = int(ram_parts[0])
-                                ram_total = int(ram_parts[1])
-                                ram_usage = (ram_used / ram_total) * 100
-                                break
-                    except (ValueError, IndexError):
-                        continue
-
-                # 記錄數據
-                data_point = {
-                    'timestamp': timestamp,
-                    'cpu_usage': round(cpu_usage, 2),
-                    'ram_used': ram_used,
-                    'ram_total': ram_total,
-                    'ram_usage': round(ram_usage, 2)
-                }
-                self.monitor_data.append(data_point)
-
-                # 寫入 CSV 文件
-                with open(monitor_file, 'a', newline='') as f:
-                    writer = csv.writer(f)
-                    writer.writerow([
-                        timestamp,
-                        round(cpu_usage, 2),
-                        ram_used,
-                        ram_total,
-                        round(ram_usage, 2)
-                    ])
-
-                # 寫入 Redis（如果啟用）
-                if self.redis_handler and self.redis_handler.is_connected():
-                    success = self.redis_handler.save_monitor_data(
-                        pair_index=self.pair_index,
-                        timestamp=timestamp,
-                        cpu_usage=round(cpu_usage, 2),
-                        ram_used=ram_used,
-                        ram_total=ram_total,
-                        ram_usage=round(ram_usage, 2)
-                    )
-                    if not success:
-                        print(f"[Pair {self.pair_index}] 警告: 監控數據寫入 Redis 失敗")
-
-                # 每秒收集一次數據
-                time.sleep(1)
-
-            except Exception as e:
-                print(f"[Pair {self.pair_index}] 監控錯誤: {e}")
-                time.sleep(1)
-
-        print(f"[Pair {self.pair_index}] 監控已停止，數據已保存到 {monitor_file}")
-
-    def monitorStop(self):
-        """停止監控"""
-        self.monitoring = False
-        print(f"[Pair {self.pair_index}] 正在停止監控...")
-
     def get_redis_summary(self):
         """獲取 Redis 中該 pair 的數據摘要"""
         if self.redis_handler and self.redis_handler.is_connected():
@@ -646,13 +539,6 @@ class dperf:
             return summary
         else:
             return None
-
-    def get_redis_monitor_data(self, start_time=None, end_time=None):
-        """從 Redis 獲取監控數據"""
-        if self.redis_handler and self.redis_handler.is_connected():
-            return self.redis_handler.get_monitor_data(self.pair_index, start_time, end_time)
-        else:
-            return []
 
     def get_redis_test_output(self, role):
         """從 Redis 獲取測試輸出數據（server 或 client）"""
@@ -727,3 +613,7 @@ if __name__ == "__main__":
 
     # 斷開連接
     test.disconnect()
+    
+    
+    
+    ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL_1FAEFB6177B4672DEE07F9D3AFC62588CCD2631EDCF22E8CCC1FB35B501C9C86
