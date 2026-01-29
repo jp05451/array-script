@@ -101,35 +101,38 @@ class APVSetup:
 
         self._execute_commands(commands, dry_run)
         
-    def setupHTTPLoadBalancer(self, pair_index, dry_run=False, clear=False):
-        if clear:
-            # Clean up commands - minimal parameters only
-            commands = [
-                f"no slb real http http_rs_{pair_index}",
-                "no slb virtual http http_slb_vs",
-                "no slb group method http_slb_rs_group",
-            ]
-        else:
-            # Setup commands - full parameters
-            commands = [
-                # setup HTTP real servers
-                f"slb real http http_rs_{pair_index} {self.pairs[pair_index].server.server_ip} {self.pairs[pair_index].server.listen_port} 0 none",
-                f"slb real enable http_rs_{pair_index}",
-                # configure HTTP virtual server
-                f'slb virtual http http_slb_vs {self.pairs[pair_index].client.virtual_server_ip} {self.pairs[pair_index].client.virtual_server_port}',
-                'slb virtual enable http_slb_vs',
-                # configure HTTP load balancer group
-                'slb group method http_slb_rs_group rr',
-                f'slb group member http_slb_rs_group http_rs_{pair_index}',
-                'slb group enable http_slb_rs_group',
-                # configure HTTP virtual server policy
-                'slb policy default http_slb_vs http_slb_rs_group'
-            ]
+    def clearHTTPLoadBalancer(self, pair_index, dry_run=False):
+        # Clean up commands - minimal parameters only
+        commands = [
+            f"no slb real http http_rs_{pair_index}",
+            "no slb virtual http http_slb_vs",
+            "no slb group method http_slb_rs_group",
+        ]
+        if dry_run:
+            print(f"Dry run: Cleaning up HTTP Load Balancer for pair index {pair_index}")
+
+        self._execute_commands(commands, dry_run)
+        
+    def setupHTTPLoadBalancer(self, pair_index, dry_run=False):
+    
+        # Setup commands - full parameters
+        commands = [
+            # setup HTTP real servers
+            f"slb real http http_rs_{pair_index} {self.pairs[pair_index].server.server_ip} {self.pairs[pair_index].server.listen_port} 0 none",
+            f"slb real enable http_rs_{pair_index}",
+            # configure HTTP virtual server
+            f'slb virtual http http_slb_vs {self.pairs[pair_index].client.virtual_server_ip} {self.pairs[pair_index].client.virtual_server_port}',
+            'slb virtual enable http_slb_vs',
+            # configure HTTP load balancer group
+            'slb group method http_slb_rs_group rr',
+            f'slb group member http_slb_rs_group http_rs_{pair_index}',
+            'slb group enable http_slb_rs_group',
+            # configure HTTP virtual server policy
+            'slb policy default http_slb_vs http_slb_rs_group'
+        ]
 
         if dry_run:
-            action = "Cleaning up" if clear else "Setting up"
-            print(f"Dry run: {action} HTTP Load Balancer for pair index {pair_index}")
-
+            print(f"Dry run: Setting up HTTP Load Balancer for pair index {pair_index}")
         self._execute_commands(commands, dry_run)
         
     
@@ -169,7 +172,7 @@ class APVSetup:
                 self.setupTCPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
             elif protocol == 'http':
                 print('Clearing HTTP')
-                self.setupHTTPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
+                self.clearHTTPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
             else:
                 raise ValueError(f"Unsupported protocol: {protocol}")
         if not dry_run:

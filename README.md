@@ -1171,11 +1171,11 @@ pairs:
 <!-- FUNCTION_SCAN_BEGIN -->
 ## 專案函式掃描結果
 
-> 掃描到 **8** 個 Python 檔案，共 **18** 個 class、**5** 個 top-level function、**93** 個 method (總計 **98** 個 function)
+> 掃描到 **8** 個 Python 檔案，共 **18** 個 class、**5** 個 top-level function、**94** 個 method (總計 **99** 個 function)
 
 | 檔案 | Classes | Top-level Functions | Methods | 合計 |
 |------|---------|--------------------:|--------:|-----:|
-| `APVSetup.py` | 1 | 1 | 10 | 11 |
+| `APVSetup.py` | 1 | 1 | 11 | 12 |
 | `RedisDB.py` | 1 | 0 | 11 | 11 |
 | `config.py` | 7 | 0 | 3 | 3 |
 | `dperfSetup.py` | 1 | 1 | 18 | 19 |
@@ -1188,7 +1188,7 @@ pairs:
 
 **Top-level Functions:**
 
-- `argParser()` (line 184)
+- `argParser()` (line 187)
 
 **Class `APVSetup`** (line 5):
 
@@ -1197,11 +1197,12 @@ pairs:
 - `_execute_commands()` (line 28)
 - `setupUDPLoadBalancer()` (line 37)
 - `setupTCPLoadBalancer()` (line 73)
-- `setupHTTPLoadBalancer()` (line 104)
-- `setupEnv()` (line 136)
-- `clearEnv()` (line 157)
-- `connect()` (line 178)
-- `disconnect()` (line 181)
+- `clearHTTPLoadBalancer()` (line 104)
+- `setupHTTPLoadBalancer()` (line 116)
+- `setupEnv()` (line 139)
+- `clearEnv()` (line 160)
+- `connect()` (line 181)
+- `disconnect()` (line 184)
 
 ### `RedisDB.py`
 
