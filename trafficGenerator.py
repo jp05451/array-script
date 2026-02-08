@@ -98,7 +98,7 @@ class TrafficGenerator:
 
         print("[TrafficGenerator] 所有連接已斷開")
 
-    def setup_env(self, pair_indices: list|None = None):
+    def setup_env(self, pair_indices: list|None = None, dry_run: bool = False):
         """設定測試環境
 
         Args:
@@ -118,6 +118,27 @@ class TrafficGenerator:
                 print(f"[TrafficGenerator] 警告: Pair {i} 不存在")
 
         print("[TrafficGenerator] 環境設定完成")
+        
+    def clearEnv(self, pair_indices: list|None = None, dry_run: bool = False):
+        """clear Env
+
+        Args:
+            pair_indices: 要設定的 pair 索引列表，若為 None 則設定所有 pair
+        """
+        if pair_indices is None:
+            pair_indices = list(range(self.pair_count))
+
+        print(f"[TrafficGenerator] 開始設定環境 (Pairs: {pair_indices})...")
+
+        for i in pair_indices:
+            if i < len(self.pairs):
+                print(f"[TrafficGenerator] clear Pair {i} env...")
+                self.pairs[i].clearEnv()
+                print(f"[TrafficGenerator] Pair {i} env cleared")
+            else:
+                print(f"[TrafficGenerator] Warning: Pair {i} not exist")
+
+        print("[TrafficGenerator] clear env completed")
 
     def run_test(self, pair_indices: list|None = None, enable_monitor: bool = True,
                  parallel: bool = False, monitor_output_file: str|None = None):
