@@ -86,7 +86,11 @@ class dperf:
     
     def _calc_duration(self, base_duration, buffer_time):
         # base_duration, buffer_time: 字串如 '40s', '1m', '2h'
-        def parse_time(s):
+        # 一律轉為秒運算，回傳最小單位為 1s
+        def parse_time_to_seconds(s):
+            if s is None:
+                return 0
+            s = str(s).strip()
             if s.endswith('ms'):
                 return float(s[:-2]) / 1000
             elif s.endswith('us'):
@@ -102,29 +106,18 @@ class dperf:
                     return float(s)
                 except Exception:
                     return 0
-        base = parse_time(base_duration)
-        buf = parse_time(buffer_time)
-        result = max(base - buf, 0.001)
-        # 輸出格式與 base_duration 相同單位
-        if base_duration.endswith('ms'):
-            return f"{int(result * 1000)}ms"
-        elif base_duration.endswith('us'):
-            return f"{int(result * 1_000_000)}us"
-        elif base_duration.endswith('s'):
-            return f"{int(result)}s"
-        elif base_duration.endswith('m'):
-            return f"{int(result // 60)}m"
-        elif base_duration.endswith('h'):
-            return f"{int(result // 3600)}h"
-        else:
-            return str(result)
+
+        base_seconds = parse_time_to_seconds(base_duration)
+        buffer_seconds = parse_time_to_seconds(buffer_time)
+        result_seconds = max(base_seconds + buffer_seconds, 1)
+        return f"{int(result_seconds)}s"
 
     def generateServerConfig(self):
         """產生 dperf server 配置檔案"""
         server_cfg = self.pair.server
         tg = self.config.test.traffic_generator
-        # 計算 server duration
-        duration = self._calc_duration(tg.duration, tg.server_buffer_time)
+        # 計算 server duration（加上 client buffer time）
+        duration = self._calc_duration(tg.duration, tg.client_buffer_time)
 
         config_lines = [
             "mode            server",
@@ -164,8 +157,8 @@ class dperf:
         """產生 dperf client 配置檔案"""
         client_cfg = self.pair.client
         tg = self.config.test.traffic_generator
-        # 計算 client duration
-        duration = self._calc_duration(tg.duration, tg.client_buffer_time)
+        # 計算 client duration（加上 server buffer time）
+        duration = self._calc_duration(tg.duration, tg.server_buffer_time)
 
         config_lines = [
             "mode            client",
