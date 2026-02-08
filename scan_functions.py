@@ -1,5 +1,5 @@
 """
-掃描專案中所有 Python 檔案的 function 與 class，並更新 README.md。
+Scan all Python files in the project for functions and classes, and update README.md.
 """
 
 import argparse
@@ -8,7 +8,7 @@ import os
 
 
 def scan_python_file(filepath: str) -> dict:
-    """掃描單一 Python 檔案，回傳 class 與 function 資訊。"""
+    """Scan a single Python file and return class/function info."""
     with open(filepath, "r", encoding="utf-8") as f:
         source = f.read()
 
@@ -34,7 +34,7 @@ def scan_python_file(filepath: str) -> dict:
 
 
 def scan_project(project_dir: str, exclude_dirs: set = None, exclude_files: set = None) -> list:
-    """掃描整個專案目錄，回傳所有 Python 檔案的分析結果。"""
+    """Scan the whole project directory and return analysis results for all Python files."""
     if exclude_dirs is None:
         exclude_dirs = set()
     if exclude_files is None:
@@ -61,7 +61,7 @@ def scan_project(project_dir: str, exclude_dirs: set = None, exclude_files: set 
 
 
 def generate_markdown(results: list) -> str:
-    """將掃描結果轉為 Markdown 格式。"""
+    """Convert scan results to Markdown format."""
     total_functions = 0
     total_methods = 0
     total_classes = 0
@@ -73,16 +73,16 @@ def generate_markdown(results: list) -> str:
             total_methods += len(c["methods"])
 
     lines = []
-    lines.append("## 專案函式掃描結果")
+    lines.append("## Project Function Scan Results")
     lines.append("")
-    lines.append(f"> 掃描到 **{len(results)}** 個 Python 檔案，"
-                 f"共 **{total_classes}** 個 class、"
-                 f"**{total_functions}** 個 top-level function、"
-                 f"**{total_methods}** 個 method "
-                 f"(總計 **{total_functions + total_methods}** 個 function)")
+    lines.append(f"> Scanned **{len(results)}** Python files, "
+                 f"found **{total_classes}** classes, "
+                 f"**{total_functions}** top-level functions, "
+                 f"and **{total_methods}** methods "
+                 f"(total **{total_functions + total_methods}** functions)")
     lines.append("")
 
-    lines.append("| 檔案 | Classes | Top-level Functions | Methods | 合計 |")
+    lines.append("| File | Classes | Top-level Functions | Methods | Total |")
     lines.append("|------|---------|--------------------:|--------:|-----:|")
     for r in results:
         n_func = len(r["functions"])
@@ -114,7 +114,7 @@ def generate_markdown(results: list) -> str:
 
 
 def update_readme(readme_path: str, section_md: str):
-    """更新 README.md，在標記區塊中插入或替換掃描結果。"""
+    """Update README.md by inserting or replacing the scan result block."""
     begin_marker = "<!-- FUNCTION_SCAN_BEGIN -->"
     end_marker = "<!-- FUNCTION_SCAN_END -->"
 
@@ -127,12 +127,12 @@ def update_readme(readme_path: str, section_md: str):
         content = ""
 
     if begin_marker in content and end_marker in content:
-        # 替換現有區塊
+        # Replace existing block
         start = content.index(begin_marker)
         end = content.index(end_marker) + len(end_marker)
         content = content[:start] + block + content[end:]
     else:
-        # 附加到檔案末尾
+        # Append to the end of the file
         if content and not content.endswith("\n"):
             content += "\n"
         content += "\n" + block + "\n"
@@ -142,36 +142,36 @@ def update_readme(readme_path: str, section_md: str):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="掃描專案中所有 Python 檔案的 function 與 class，並更新 README.md。")
+    parser = argparse.ArgumentParser(description="Scan all Python files for functions/classes and update README.md.")
     parser.add_argument(
         "--exclude-files", "-ef",
         nargs="*",
         default=[],
         metavar="FILE",
-        help="要排除的檔案名稱，例如：-ef RedisDB.py test_ssh.py",
+        help="File names to exclude, e.g., -ef RedisDB.py test_ssh.py",
     )
     parser.add_argument(
         "--exclude-dirs", "-ed",
         nargs="*",
         default=[],
         metavar="DIR",
-        help="要額外排除的目錄名稱（預設已排除 .venv, .git, __pycache__, node_modules, .tox），例如：-ed tests shell",
+        help="Additional directories to exclude (defaults already exclude .venv, .git, __pycache__, node_modules, .tox), e.g., -ed tests shell",
     )
     parser.add_argument(
         "--exclude-tests", "-et",
         action="store_true",
-        help="排除所有 test_*.py 測試檔案",
+        help="Exclude all test_*.py files",
     )
     parser.add_argument(
         "--readme",
         default=None,
         metavar="PATH",
-        help="指定 README.md 路徑（預設為專案根目錄下的 README.md）",
+        help="Specify README.md path (default: README.md in project root)",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="只印出掃描結果，不寫入 README.md",
+        help="Print results only; do not write to README.md",
     )
     return parser.parse_args()
 
@@ -185,7 +185,7 @@ def main():
     exclude_dirs = set(args.exclude_dirs)
 
     if args.exclude_tests:
-        # 動態收集所有 test_*.py 檔案名稱
+        # Dynamically collect all test_*.py filenames
         for root, _, files in os.walk(project_dir):
             for f in files:
                 if f.startswith("test_") and f.endswith(".py"):
@@ -199,18 +199,18 @@ def main():
     else:
         update_readme(readme_path, section_md)
 
-    # 印出摘要
+    # Print summary
     total = sum(
         len(r["functions"]) + sum(len(c["methods"]) for c in r["classes"])
         for r in results
     )
-    print(f"掃描完成：{len(results)} 個檔案，共 {total} 個 function")
+    print(f"Scan completed: {len(results)} files, {total} functions total")
     if args.exclude_files or args.exclude_tests:
-        print(f"已排除檔案：{', '.join(sorted(exclude_files))}")
+        print(f"Excluded files: {', '.join(sorted(exclude_files))}")
     if args.exclude_dirs:
-        print(f"已額外排除目錄：{', '.join(sorted(exclude_dirs))}")
+        print(f"Additional excluded directories: {', '.join(sorted(exclude_dirs))}")
     if not args.dry_run:
-        print(f"已更新 {readme_path}")
+        print(f"Updated {readme_path}")
 
 
 if __name__ == "__main__":
