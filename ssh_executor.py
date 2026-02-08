@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""SSH 連接並執行 shell 腳本"""
+"""SSH connection and shell script execution"""
 
 import argparse
 import paramiko
-# import signal  # 暫時關閉 signal，因為與多線程衝突
+# import signal  # Temporarily disabled due to conflict with multi-threading
 import sys
 from typing import Tuple, Optional
 from config import Config
@@ -11,17 +11,17 @@ from output_handler import OutputHandler
 
 
 class SSHConnectionManager:
-    """SSH 連接管理器"""
+    """SSH Connection Manager"""
 
     def __init__(self, host: str, port: int, user: str, password: str):
         """
-        初始化 SSH 連接管理器
+        Initialize SSH Connection Manager
 
         Args:
-            host: 主機地址
-            port: 端口號
-            user: 用戶名
-            password: 密碼
+            host: Host address
+            port: Port number
+            user: Username
+            password: Password
         """
         self.host = host
         self.port = port
@@ -30,11 +30,11 @@ class SSHConnectionManager:
         self._client: Optional[paramiko.SSHClient] = None
 
     def connect(self) -> None:
-        """建立 SSH 連接"""
+        """Establish SSH connection"""
         self._client = paramiko.SSHClient()
         self._client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-        print(f"正在連接到 {self.user}@{self.host}:{self.port}...")
+        print(f"Connecting to {self.user}@{self.host}:{self.port}...")
 
         self._client.connect(
             hostname=self.host,
@@ -43,56 +43,56 @@ class SSHConnectionManager:
             password=self.password,
         )
 
-        print("連接成功！")
+        print("Connection successful!")
 
     def close(self) -> None:
-        """關閉 SSH 連接"""
+        """Close SSH connection"""
         if self._client:
             self._client.close()
-            print("SSH 連接已關閉")
+            print("SSH connection closed")
             self._client = None
 
     def is_connected(self) -> bool:
-        """檢查是否已連接"""
+        """Check if connected"""
         return self._client is not None
 
     def get_client(self) -> paramiko.SSHClient:
-        """獲取 SSH 客戶端"""
+        """Get SSH client"""
         if not self._client:
-            raise Exception("尚未建立 SSH 連接")
+            raise Exception("SSH connection not established")
         return self._client
 
     def __enter__(self):
-        """支持 with 語句"""
+        """Support with statement"""
         self.connect()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """支持 with 語句"""
+        """Support with statement"""
         self.close()
         return False
 
 
 class ScriptReader:
-    """腳本讀取器"""
+    """Script Reader"""
 
     @staticmethod
     def read_script(script_path: str) -> str:
         """
-        讀取腳本文件內容
+        Read script file content
 
         Args:
-            script_path: 腳本文件路徑
+            script_path: Path to script file
 
         Returns:
-            腳本內容
+            Script content
         """
         with open(script_path, "r", encoding="utf-8") as f:
             return f.read()
 
 
 class SignalHandler:
-    """信號處理器"""
+    """Signal Handler"""
 
     def __init__(self):
         self.interrupted = False
@@ -100,14 +100,14 @@ class SignalHandler:
 
     def setup(self, stdin) -> None:
         """
-        設置信號處理器
+        Setup signal handler
 
         Args:
-            stdin: SSH 標準輸入流
+            stdin: SSH standard input stream
         """
-        # 暫時關閉 signal 處理，因為與多線程衝突
+        # Temporarily disabled due to conflict with multi-threading
         # def handler(sig, frame):
-        #     print("\n\n收到中斷信號，正在停止遠端程式...")
+        #     print("\n\nInterrupt signal received, stopping remote program...")
         #     try:
         #         stdin.write("\x03")
         #         stdin.flush()
@@ -116,23 +116,23 @@ class SignalHandler:
         #     self.interrupted = True
 
         # self._original_handler = signal.signal(signal.SIGINT, handler)
-        # print("提示: 按 Ctrl+C 可停止程式執行\n")
+        # print("Tip: Press Ctrl+C to stop program execution\n")
         pass
 
     def stop(self) -> None:
-        """標記為已中斷"""
+        """Mark as interrupted"""
         self.interrupted = True
 
     def restore(self) -> None:
-        """恢復原始信號處理器"""
-        # 暫時關閉 signal 處理，因為與多線程衝突
+        """Restore original signal handler"""
+        # Temporarily disabled due to conflict with multi-threading
         # if self._original_handler:
         #     signal.signal(signal.SIGINT, self._original_handler)
         pass
 
 
 class RealTimeStreamReader:
-    """實時流讀取器"""
+    """Real-time Stream Reader"""
 
     def __init__(
         self,
@@ -142,13 +142,13 @@ class RealTimeStreamReader:
         output_handler: OutputHandler,
     ):
         """
-        初始化實時流讀取器
+        Initialize real-time stream reader
 
         Args:
-            stdout: 標準輸出流
-            stderr: 標準錯誤流
-            signal_handler: 信號處理器
-            output_handler: 輸出處理器
+            stdout: Standard output stream
+            stderr: Standard error stream
+            signal_handler: Signal handler
+            output_handler: Output handler
         """
         self.stdout = stdout
         self.stderr = stderr
@@ -156,9 +156,9 @@ class RealTimeStreamReader:
         self.output_handler = output_handler
 
     def read(self) -> None:
-        """讀取並實時打印輸出"""
+        """Read and print output in real-time"""
         try:
-            # 即時讀取輸出
+            # Read output in real-time
             while not self.stdout.channel.exit_status_ready():
                 if self.signal_handler.interrupted:
                     self._read_remaining()
@@ -167,35 +167,35 @@ class RealTimeStreamReader:
                     output = self.stdout.channel.recv(1024).decode("utf-8")
                     self.output_handler.write(output, end="", flush=True)
 
-            # 讀取剩餘輸出
+            # Read remaining output
             if not self.signal_handler.interrupted:
                 self._read_remaining()
 
-            # 讀取錯誤輸出
+            # Read error output
             error = self.stderr.read().decode("utf-8")
             if error:
                 self.output_handler.print_error(error)
 
         except Exception as e:
-            self.output_handler.write(f"\n執行過程中發生錯誤：{e}")
+            self.output_handler.write(f"\nError occurred during execution: {e}")
 
     def _read_remaining(self) -> None:
-        """讀取剩餘的輸出"""
+        """Read remaining output"""
         remaining = self.stdout.read().decode("utf-8")
         if remaining:
             self.output_handler.write(remaining, end="", flush=True)
 
 
 class CommandExecutor:
-    """命令執行器"""
+    """Command Executor"""
 
     def __init__(self, ssh_client: paramiko.SSHClient, output_handler: OutputHandler):
         """
-        初始化命令執行器
+        Initialize command executor
 
         Args:
-            ssh_client: SSH 客戶端
-            output_handler: 輸出處理器
+            ssh_client: SSH client
+            output_handler: Output handler
         """
         self.ssh_client = ssh_client
         self.output_handler = output_handler
@@ -204,13 +204,13 @@ class CommandExecutor:
 
     def execute_simple(self, command: str) -> Tuple[str, str, int]:
         """
-        執行簡單命令（等待完成）
+        Execute simple command (waits for completion)
 
         Args:
-            command: 要執行的命令
+            command: Command to execute
 
         Returns:
-            (output, error, exit_status) 元組
+            (output, error, exit_status) tuple
         """
         stdin, stdout, stderr = self.ssh_client.exec_command(command)
 
@@ -222,10 +222,10 @@ class CommandExecutor:
 
     def execute_realtime(self, command: str) -> None:
         """
-        執行命令並實時輸出
+        Execute command with real-time output
 
         Args:
-            command: 要執行的命令
+            command: Command to execute
         """
         stdin, stdout, stderr = self.ssh_client.exec_command(command, get_pty=True)
 
@@ -241,7 +241,7 @@ class CommandExecutor:
 
     def start_session(self) -> None:
         """
-        啟動持久的互動式 shell session
+        Start a persistent interactive shell session
         """
         if self._session_active:
             return
@@ -249,7 +249,7 @@ class CommandExecutor:
         self._shell = self.ssh_client.invoke_shell()
         self._session_active = True
 
-        # 等待初始提示符並清除歡迎訊息
+        # Wait for initial prompt and clear welcome message
         import time
         time.sleep(0.5)
         if self._shell.recv_ready():
@@ -257,7 +257,7 @@ class CommandExecutor:
 
     def stop_session(self) -> None:
         """
-        停止持久的互動式 shell session
+        Stop persistent interactive shell session
         """
         if self._shell:
             self._shell.close()
@@ -266,24 +266,24 @@ class CommandExecutor:
 
     def execute_in_session(self, command: str, timeout: float = 10.0) -> str:
         """
-        在持久 session 中執行命令
+        Execute command in persistent session
 
         Args:
-            command: 要執行的命令
-            timeout: 等待輸出的超時時間（秒）
+            command: Command to execute
+            timeout: Timeout in seconds for waiting for output
 
         Returns:
-            命令的輸出
+            Command output
         """
         if not self._session_active:
-            raise Exception("Session 尚未啟動，請先呼叫 start_session()")
+            raise Exception("Session not started, please call start_session() first")
 
         import time
 
-        # 發送命令
+        # Send command
         self._shell.send(command + "\n")
 
-        # 等待並收集輸出
+        # Wait and collect output
         output = ""
         start_time = time.time()
 
@@ -292,12 +292,12 @@ class CommandExecutor:
                 chunk = self._shell.recv(4096).decode('utf-8')
                 output += chunk
 
-                # 如果看到提示符，表示命令執行完成
-                # 這裡使用簡單的換行檢測，可以根據需要調整
+                # If prompt is seen, command execution is complete
+                # Simple newline detection used here, adjust as needed
                 if chunk.endswith('$ ') or chunk.endswith('# ') or chunk.endswith('> '):
                     break
 
-            # 檢查超時
+            # Check timeout
             if time.time() - start_time > timeout:
                 break
 
@@ -307,16 +307,16 @@ class CommandExecutor:
 
     def is_session_active(self) -> bool:
         """
-        檢查 session 是否活躍
+        Check if session is active
 
         Returns:
-            True 如果 session 活躍，否則 False
+            True if session is active, else False
         """
         return self._session_active
 
 
 class SSHExecutor:
-    """SSH 執行器類別（高層封裝）"""
+    """SSH Executor class (high-level wrapper)"""
 
     def __init__(
         self,
@@ -327,14 +327,14 @@ class SSHExecutor:
         log_path: Optional[str] = None,
     ):
         """
-        初始化 SSH 執行器
+        Initialize SSH Executor
 
         Args:
-            host: 主機地址
-            port: 端口號
-            user: 用戶名
-            password: 密碼
-            output_path: 輸出檔案路徑，若為 None 則輸出到 stdout
+            host: Host address
+            port: Port number
+            user: Username
+            password: Password
+            log_path: Path to output file, if None then output to stdout
         """
         self.connection_manager = SSHConnectionManager(
             host=host,
@@ -347,10 +347,10 @@ class SSHExecutor:
 
     def connect(self, persistent_session: bool = False) -> None:
         """
-        建立 SSH 連接
+        Establish SSH connection
 
         Args:
-            persistent_session: 是否啟用持久 session，允許在多個命令之間保持狀態（如：目錄、環境變數等）
+            persistent_session: Whether to enable persistent session to maintain state (e.g., directory, environment variables) between commands
         """
         self.connection_manager.connect()
         self._executor = CommandExecutor(
@@ -360,24 +360,24 @@ class SSHExecutor:
         if persistent_session:
             self._executor.start_session()
     def connect_session(self) -> None:
-        """建立持久 SSH 連接"""
+        """Establish persistent SSH connection"""
         self.connect(persistent_session=True)
         
     def execute_script(
         self, script_path: str, real_time: bool = False
     ) -> Optional[Tuple[str, str, int]]:
         """
-        執行指定的 shell 腳本
+        Execute specified shell script
 
         Args:
-            script_path: shell 腳本的路徑
-            real_time: 是否即時輸出 (預設: False)
+            script_path: Path to shell script
+            real_time: Whether to output in real-time (default: False)
 
         Returns:
-            如果 real_time=False,返回 (output, error, exit_status)，否則返回 None
+            If real_time=False, returns (output, error, exit_status), else returns None
         """
         if not self._executor:
-            raise Exception("尚未建立 SSH 連接")
+            raise Exception("SSH connection not established")
 
         commands = ScriptReader.read_script(script_path)
         self.output_handler.print_header(script_path)
@@ -399,13 +399,13 @@ class SSHExecutor:
         self, command: str, real_time: bool = False
     ) -> Optional[Tuple[str, str, int]]:
         """
-        執行單一指令
+        Execute single command
 
         Args:
-            command: 要執行的指令
+            command: Command to execute
 
         Returns:
-            (output, error, exit_status) 元組，發生錯誤時返回 None
+            (output, error, exit_status) tuple, returns None on error
         """
         if self.persistent_session:
             output = self._executor.execute_in_session(command)
@@ -421,7 +421,7 @@ class SSHExecutor:
                 return output, error, exit_status
 
     def close(self) -> None:
-        """關閉 SSH 連接"""
+        """Close SSH connection"""
         if self._executor and self._executor.is_session_active():
             self._executor.stop_session()
         self.connection_manager.close()
@@ -429,12 +429,12 @@ class SSHExecutor:
         self._executor = None
 
     def __enter__(self):
-        """支持 with 語句"""
-        # 默認不啟用 persistent_session，保持向後兼容
+        """Support with statement"""
+        # Default to not enabling persistent_session to maintain backward compatibility
         self.connect(persistent_session=False)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """支持 with 語句"""
+        """Support with statement"""
         self.close()
         return False
