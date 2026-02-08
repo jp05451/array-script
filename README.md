@@ -3,6 +3,12 @@
 
 This project provides automated scripts to run DPerf network performance tests. It connects to remote hosts via SSH, configures the DPDK environment, and executes tests automatically.
 
+## Version Information
+
+- DPerf: 1.9.0
+- DPDK: 25.11.0-rc2
+- ArrayOS: Rel.APV.10.7.3.26
+
 ## Table of Contents
 
 - [Core Module Overview](#core-module-overview)
