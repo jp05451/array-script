@@ -115,7 +115,7 @@ def main():
         tg.setup_env()
 
         # 執行測試
-        results = tg.run_test()
+        results = tg.run_test(parallel=True, enable_monitor=True)
 
         print("\n" + "=" * 60)
         print("測試結果摘要:")

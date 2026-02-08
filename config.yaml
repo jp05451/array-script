@@ -5,7 +5,7 @@ test:
   apv_management_ip: 192.168.1.247
   apv_management_port: 22
   apv_username: array
-  apv_password: aclab@6768
+  apv_password: Aclab@6768
   apv_enable_password: ""
   
   # 流量產生器配置
