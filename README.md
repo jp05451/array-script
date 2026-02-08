@@ -11,6 +11,7 @@ This project provides automated scripts to run DPerf network performance tests. 
 
 ## Table of Contents
 
+- [Version Information](#version-information)
 - [Core Module Overview](#core-module-overview)
   - [1. dperfSetup.py](#1-dperfsetuppy)
   - [2. ssh_executor.py](#2-ssh_executorpy)
@@ -586,7 +587,6 @@ This module provides configuration management using dataclasses.
   | `client_ip` | str | "" | Client IP |
   | `source_ip_nums` | int | 0 | Number of simulated source IPs |
   | `client_gw` | str | "" | Client gateway |
-  | `client_duration` | str | "" | Test duration |
   | `client_cpu_core` | int | 0 | CPU cores |
   | `tx_burst` | int | 0 | TX burst size |
   | `launch_num` | int | 0 | Number of launched sessions |
@@ -608,7 +608,6 @@ This module provides configuration management using dataclasses.
   | `server_nic_driver` | str | "i40e" | NIC driver |
   | `server_ip` | str | "" | Server IP |
   | `server_gw` | str | "" | Server gateway |
-  | `server_duration` | str | "" | Test duration |
   | `server_cpu_core` | int | 0 | CPU cores |
   | `tx_burst` | int | 0 | TX burst size |
   | `keepalive` | str | "" | Keepalive interval |
@@ -636,6 +635,9 @@ This module provides configuration management using dataclasses.
   - `dperf_path: str`
   - `hugepage_frames: int` (default: 2)
   - `hugepage_size: str` (default: "1G")
+  - `duration: str`
+  - `client_buffer_time: str`
+  - `server_buffer_time: str`
   - `pairs: List[TrafficGeneratorPair]`
 
 ##### `TestConfig`
@@ -1037,6 +1039,11 @@ test:
     hugepage_frames: 2
     hugepage_size: 1G
 
+    # Duration and buffer time
+    duration: 40s
+    client_buffer_time: 1s
+    server_buffer_time: 3s
+
     pairs:
       - client:
           # Client config
@@ -1067,6 +1074,9 @@ test:
 | `management_port` | SSH port | 22 |
 | `username` | SSH username | root |
 | `password` | SSH password | array |
+| `duration` | Base test duration (s/m/h) | 40s |
+| `client_buffer_time` | Extra time added to server duration (s/m/h) | 1s |
+| `server_buffer_time` | Extra time added to client duration (s/m/h) | 3s |
 
 #### 3. Hugepages
 
@@ -1087,7 +1097,6 @@ test:
 | `client_ip` | Client starting IP | 10.10.11.1 |
 | `source_ip_nums` | Number of simulated source IPs | 60 |
 | `client_gw` | Client gateway | 10.10.11.100 |
-| `client_duration` | Test duration (s/m/h) | 1s, 570s |
 | `client_cpu_core` | Number of CPU cores | 6 |
 | `tx_burst` | TX burst size | 1024 |
 | `launch_num` | Number of launched sessions | 100 |
@@ -1108,7 +1117,6 @@ test:
 | `server_nic_driver` | Native NIC driver | i40e |
 | `server_ip` | Server IP | 10.10.12.1 |
 | `server_gw` | Server gateway | 10.10.12.100 |
-| `server_duration` | Test duration (s/m/h) | 40s, 600s |
 | `server_cpu_core` | Number of CPU cores | 14 |
 | `tx_burst` | TX burst size | 1024 |
 | `keepalive` | TCP keepalive interval | 1us |
@@ -1127,7 +1135,7 @@ test:
 ### Configuration Recommendations
 
 1. **CPU cores**: Server typically needs more cores than client. Recommend `server_cpu_core` ≥ `client_cpu_core`
-2. **Test duration**: Server should run a few seconds longer than client to ensure full traffic reception
+2. **Test duration**: Configure `traffic_generator.duration` as the base time, and use buffer times so that client duration = duration + server_buffer_time and server duration = duration + client_buffer_time
 3. **Memory**: `socket_mem` should be adjusted based on concurrency and packet size; recommend at least 1024 MB
 4. **Concurrency**: `cc` affects resource usage; tune based on targets and system capacity
 5. **RSS**: Enable RSS in multi-core environments for better performance
