@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Redis 資料庫處理器 - 用於儲存測試數據"""
+"""Redis Database Handler - Used for storing test data"""
 
 import redis as redis_client
 from typing import Optional, Dict, List
@@ -7,7 +7,7 @@ from datetime import datetime
 
 
 class RedisHandler:
-    """Redis 資料庫處理器"""
+    """Redis Database Handler"""
 
     def __init__(
         self,
@@ -18,14 +18,14 @@ class RedisHandler:
         decode_responses: bool = True,
     ):
         """
-        初始化 Redis 連接
+        Initialize Redis connection
 
         Args:
-            host: Redis 主機地址
-            port: Redis 端口
-            db: Redis 數據庫編號
-            password: Redis 密碼（如果需要）
-            decode_responses: 是否自動解碼響應為字符串
+            host: Redis host address
+            port: Redis port
+            db: Redis database index
+            password: Redis password (if required)
+            decode_responses: Whether to automatically decode responses to strings
         """
         self.host = host
         self.port = port
@@ -40,15 +40,15 @@ class RedisHandler:
                 password=password,
                 decode_responses=decode_responses,
             )
-            # 測試連接
+            # Test connection
             self.client.ping()
-            print(f"成功連接到 Redis: {host}:{port}")
+            print(f"Successfully connected to Redis: {host}:{port}")
         except Exception as e:
-            print(f"警告: 無法連接到 Redis ({host}:{port}): {e}")
+            print(f"Warning: Unable to connect to Redis ({host}:{port}): {e}")
             self.client = None
 
     def is_connected(self) -> bool:
-        """檢查是否成功連接到 Redis"""
+        """Check if connected to Redis successfully"""
         return self.client is not None
 
     def save_monitor_data(
@@ -56,24 +56,24 @@ class RedisHandler:
         ram_used: int, ram_total: int, ram_usage: float
     ) -> bool:
         """
-        儲存監控數據到 Redis
+        Store monitoring data to Redis
 
         Args:
-            pair_index: pair 索引
-            timestamp: 時間戳
-            cpu_usage: CPU 使用率
-            ram_used: 已使用 RAM (MB)
-            ram_total: 總 RAM (MB)
-            ram_usage: RAM 使用率
+            pair_index: pair index
+            timestamp: Timestamp
+            cpu_usage: CPU usage
+            ram_used: RAM used (MB)
+            ram_total: Total RAM (MB)
+            ram_usage: RAM usage
 
         Returns:
-            成功返回 True，否則返回 False
+            True if successful, False otherwise
         """
         if not self.is_connected():
             return False
 
         try:
-            # 使用 Hash 結構儲存監控數據
+            # Use Hash structure to store monitoring data
             # Key: monitor:pair{index}:{timestamp}
             key = f"monitor:pair{pair_index}:{timestamp}"
 
@@ -88,34 +88,34 @@ class RedisHandler:
 
             self.client.hset(key, mapping=data)
 
-            # 將 key 加入到 sorted set 以便按時間排序查詢
-            # Score 使用時間戳轉換為 Unix 時間戳
+            # Add key to sorted set for time-sorted queries
+            # Score uses timestamp converted to Unix timestamp
             ts = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S').timestamp()
             self.client.zadd(f"monitor:pair{pair_index}:timeline", {key: ts})
 
             return True
         except Exception as e:
-            print(f"儲存監控數據失敗: {e}")
+            print(f"Failed to store monitoring data: {e}")
             return False
 
     def save_test_output(
         self, pair_index: int, role: str, output: Dict, timestamp: Optional[str] = None
     ) -> bool:
         """
-        儲存測試輸出數據（server 或 client）
+        Store test output data (server or client)
 
-        資料結構：
-        - test:pair{index}:{role}:{timestamp}:info - 儲存 metadata (pair_index, role, timestamp)
-        - test:pair{index}:{role}:{timestamp}:metrics - 儲存所有效能指標 (duration, ackDup, etc.)
+        Data structure:
+        - test:pair{index}:{role}:{timestamp}:info - Store metadata (pair_index, role, timestamp)
+        - test:pair{index}:{role}:{timestamp}:metrics - Store all performance metrics (duration, ackDup, etc.)
 
         Args:
-            pair_index: pair 索引
-            role: 角色 ('server' 或 'client')
-            output: 測試輸出數據字典
-            timestamp: 時間戳（可選，預設使用當前時間）
+            pair_index: pair index
+            role: Role ('server' or 'client')
+            output: Test output data dictionary
+            timestamp: Timestamp (optional, default uses current time)
 
         Returns:
-            成功返回 True，否則返回 False
+            True if successful, False otherwise
         """
         if not self.is_connected():
             return False
@@ -124,10 +124,10 @@ class RedisHandler:
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
         try:
-            # Key 前綴
+            # Key prefix
             key_prefix = f"test:pair{pair_index}:{role}:{timestamp}"
 
-            # 1. 儲存 metadata
+            # 1. Store metadata
             info_key = f"{key_prefix}:info"
             metadata = {
                 "pair_index": pair_index,
@@ -136,40 +136,40 @@ class RedisHandler:
             }
             self.client.hset(info_key, mapping=metadata)
 
-            # 2. 儲存 metrics
+            # 2. Store metrics
             metrics_key = f"{key_prefix}:metrics"
-            # 將所有 output 數據作為 metrics 儲存
+            # Store all output data as metrics
             metrics_data = {k: str(v) for k, v in output.items()}
             self.client.hset(metrics_key, mapping=metrics_data)
 
-            # 3. 將 key 前綴加入到 sorted set 以便按時間排序查詢
+            # 3. Add key prefix to sorted set for time-sorted queries
             ts = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S').timestamp()
             self.client.zadd(f"test:pair{pair_index}:{role}:timeline", {key_prefix: ts})
 
             return True
         except Exception as e:
-            print(f"儲存測試輸出失敗: {e}")
+            print(f"Failed to store test output: {e}")
             return False
 
     def get_monitor_data(
         self, pair_index: int, start_time: Optional[str] = None, end_time: Optional[str] = None
     ) -> List[Dict]:
         """
-        獲取監控數據
+        Retrieve monitoring data
 
         Args:
-            pair_index: pair 索引
-            start_time: 起始時間（可選）
-            end_time: 結束時間（可選）
+            pair_index: pair index
+            start_time: Start time (optional)
+            end_time: End time (optional)
 
         Returns:
-            監控數據列表
+            Monitoring data list
         """
         if not self.is_connected():
             return []
 
         try:
-            # 從 sorted set 獲取時間範圍內的 keys
+            # Get keys within time range from sorted set
             min_score = '-inf'
             max_score = '+inf'
 
@@ -182,7 +182,7 @@ class RedisHandler:
                 f"monitor:pair{pair_index}:timeline", min_score, max_score
             )
 
-            # 獲取每個 key 的數據
+            # Retrieve data for each key
             result = []
             for key in keys:
                 data = self.client.hgetall(key)
@@ -190,7 +190,7 @@ class RedisHandler:
 
             return result
         except Exception as e:
-            print(f"獲取監控數據失敗: {e}")
+            print(f"Failed to retrieve monitoring data: {e}")
             return []
 
     def get_test_output(
@@ -198,24 +198,24 @@ class RedisHandler:
         include_metrics: bool = True
     ) -> Optional[Dict]:
         """
-        獲取測試輸出數據
+        Retrieve test output data
 
         Args:
-            pair_index: pair 索引
-            role: 角色 ('server' 或 'client')
-            timestamp: 時間戳（可選，若不提供則返回最新的）
-            include_metrics: 是否包含 metrics 數據（預設 True）
+            pair_index: pair index
+            role: Role ('server' or 'client')
+            timestamp: Timestamp (optional, returns latest if not provided)
+            include_metrics: Whether to include metrics data (default True)
 
         Returns:
-            測試輸出數據字典，包含 'info' 和 'metrics' (如果 include_metrics=True)
-            如果不存在則返回 None
+            Test output dictionary containing 'info' and 'metrics' (if include_metrics=True)
+            Returns None if not found
         """
         if not self.is_connected():
             return None
 
         try:
             if timestamp is None:
-                # 獲取最新的數據
+                # Retrieve latest data
                 key_prefixes = self.client.zrevrange(
                     f"test:pair{pair_index}:{role}:timeline", 0, 0
                 )
@@ -225,7 +225,7 @@ class RedisHandler:
             else:
                 key_prefix = f"test:pair{pair_index}:{role}:{timestamp}"
 
-            # 讀取 metadata
+            # Read metadata
             info_key = f"{key_prefix}:info"
             info_data = self.client.hgetall(info_key)
 
@@ -234,7 +234,7 @@ class RedisHandler:
 
             result = {"info": info_data}
 
-            # 讀取 metrics (如果需要)
+            # Read metrics (if required)
             if include_metrics:
                 metrics_key = f"{key_prefix}:metrics"
                 metrics_data = self.client.hgetall(metrics_key)
@@ -242,24 +242,24 @@ class RedisHandler:
 
             return result
         except Exception as e:
-            print(f"獲取測試輸出失敗: {e}")
+            print(f"Failed to retrieve test output: {e}")
             return None
 
     def clear_pair_data(self, pair_index: int) -> bool:
         """
-        清除指定 pair 的所有數據
+        Clear all data for specified pair
 
         Args:
-            pair_index: pair 索引
+            pair_index: pair index
 
         Returns:
-            成功返回 True，否則返回 False
+            True if successful, False otherwise
         """
         if not self.is_connected():
             return False
 
         try:
-            # 獲取所有相關的 keys
+            # Get all related keys
             patterns = [
                 f"monitor:pair{pair_index}:*",
                 f"test:pair{pair_index}:*",
@@ -270,10 +270,10 @@ class RedisHandler:
                 if keys:
                     self.client.delete(*keys)
 
-            print(f"已清除 pair {pair_index} 的所有數據")
+            print(f"Cleared all data for pair {pair_index}")
             return True
         except Exception as e:
-            print(f"清除數據失敗: {e}")
+            print(f"Failed to clear data: {e}")
             return False
 
     def get_all_test_outputs(
@@ -281,23 +281,23 @@ class RedisHandler:
         end_time: Optional[str] = None, include_metrics: bool = True
     ) -> List[Dict]:
         """
-        獲取指定時間範圍內的所有測試輸出數據
+        Retrieve all test output data within specified time range
 
         Args:
-            pair_index: pair 索引
-            role: 角色 ('server' 或 'client')
-            start_time: 起始時間（可選）
-            end_time: 結束時間（可選）
-            include_metrics: 是否包含 metrics 數據（預設 True）
+            pair_index: pair index
+            role: Role ('server' or 'client')
+            start_time: Start time (optional)
+            end_time: End time (optional)
+            include_metrics: Whether to include metrics data (default True)
 
         Returns:
-            測試輸出數據列表，每個元素包含 'info' 和 'metrics' (如果 include_metrics=True)
+            Test output list, each element containing 'info' and 'metrics' (if include_metrics=True)
         """
         if not self.is_connected():
             return []
 
         try:
-            # 從 sorted set 獲取時間範圍內的 key prefixes
+            # Get key prefixes within time range from sorted set
             min_score = '-inf'
             max_score = '+inf'
 
@@ -310,10 +310,10 @@ class RedisHandler:
                 f"test:pair{pair_index}:{role}:timeline", min_score, max_score
             )
 
-            # 獲取每個 key prefix 的數據
+            # Retrieve data for each key prefix
             result = []
             for key_prefix in key_prefixes:
-                # 讀取 metadata
+                # Read metadata
                 info_key = f"{key_prefix}:info"
                 info_data = self.client.hgetall(info_key)
 
@@ -322,7 +322,7 @@ class RedisHandler:
 
                 data = {"info": info_data}
 
-                # 讀取 metrics (如果需要)
+                # Read metrics (if required)
                 if include_metrics:
                     metrics_key = f"{key_prefix}:metrics"
                     metrics_data = self.client.hgetall(metrics_key)
@@ -332,7 +332,7 @@ class RedisHandler:
 
             return result
         except Exception as e:
-            print(f"獲取測試輸出數據失敗: {e}")
+            print(f"Failed to retrieve test output data: {e}")
             return []
 
     def get_specific_metrics(
@@ -340,24 +340,24 @@ class RedisHandler:
         timestamp: Optional[str] = None
     ) -> Optional[Dict]:
         """
-        獲取特定的 metrics 數據
+        Retrieve specific metrics data
 
         Args:
-            pair_index: pair 索引
-            role: 角色 ('server' 或 'client')
-            metric_names: 要查詢的 metric 名稱列表 (例如 ['duration', 'ackDup', 'synRt'])
-            timestamp: 時間戳（可選，若不提供則返回最新的）
+            pair_index: pair index
+            role: Role ('server' or 'client')
+            metric_names: List of metric names to query (e.g. ['duration', 'ackDup', 'synRt'])
+            timestamp: Timestamp (optional, returns latest if not provided)
 
         Returns:
-            包含指定 metrics 的字典，如果不存在則返回 None
-            格式: {'duration': '值', 'ackDup': '值', ...}
+            Dictionary containing specified metrics, returns None if not found
+            Format: {'duration': 'value', 'ackDup': 'value', ...}
         """
         if not self.is_connected():
             return None
 
         try:
             if timestamp is None:
-                # 獲取最新的數據
+                # Retrieve latest data
                 key_prefixes = self.client.zrevrange(
                     f"test:pair{pair_index}:{role}:timeline", 0, 0
                 )
@@ -367,7 +367,7 @@ class RedisHandler:
             else:
                 key_prefix = f"test:pair{pair_index}:{role}:{timestamp}"
 
-            # 讀取指定的 metrics
+            # Read specified metrics
             metrics_key = f"{key_prefix}:metrics"
             result = {}
 
@@ -377,18 +377,18 @@ class RedisHandler:
 
             return result
         except Exception as e:
-            print(f"獲取特定 metrics 失敗: {e}")
+            print(f"Failed to retrieve specific metrics: {e}")
             return None
 
     def get_pair_summary(self, pair_index: int) -> Dict:
         """
-        獲取指定 pair 的數據摘要
+        Retrieve data summary for specified pair
 
         Args:
-            pair_index: pair 索引
+            pair_index: pair index
 
         Returns:
-            包含監控數據和測試輸出數量的摘要字典
+            Summary dictionary containing monitor data and test output counts
         """
         if not self.is_connected():
             return {}
@@ -401,26 +401,26 @@ class RedisHandler:
                 'client_output_count': 0,
             }
 
-            # 獲取監控數據數量
+            # Retrieve monitor data count
             monitor_keys = self.client.zcard(f"monitor:pair{pair_index}:timeline")
             summary['monitor_count'] = monitor_keys if monitor_keys else 0
 
-            # 獲取 server 輸出數量
+            # Retrieve server output count
             server_keys = self.client.zcard(f"test:pair{pair_index}:server:timeline")
             summary['server_output_count'] = server_keys if server_keys else 0
 
-            # 獲取 client 輸出數量
+            # Retrieve client output count
             client_keys = self.client.zcard(f"test:pair{pair_index}:client:timeline")
             summary['client_output_count'] = client_keys if client_keys else 0
 
             return summary
         except Exception as e:
-            print(f"獲取 pair 摘要失敗: {e}")
+            print(f"Failed to retrieve pair summary: {e}")
             return {}
 
     def close(self) -> None:
-        """關閉 Redis 連接"""
+        """Close Redis connection"""
         if self.client:
             self.client.close()
-            print("Redis 連接已關閉")
+            print("Redis connection closed")
 
