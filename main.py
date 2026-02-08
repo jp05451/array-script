@@ -131,6 +131,7 @@ def main():
 
     finally:
         # 斷開連接
+        tg.clearEnv()
         tg.disconnect()
         apv.clearEnv()
         apv.disconnect()

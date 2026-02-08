@@ -496,6 +496,18 @@ class dperf:
         except Exception as e:
             print(f"設定 hugepages 失敗: {e}")
             raise
+    
+    def clearHugePages(self):
+        try:
+            self.executor.execute_command(
+                f"cd {self.config.test.traffic_generator.dpdk_path}/usertools"
+            )
+            self.executor.execute_command(
+                "sudo python3 dpdk-hugepages.py --clear"
+            )
+        except Exception as e:
+            print(f'Fail to clear HugePages {e}')
+            raise
 
     def setupConfig(self):
         """建立 dperf 配置檔案"""
@@ -530,6 +542,17 @@ class dperf:
             
         except Exception as e:
             print(f"設定 dperf 環境失敗: {e}")
+            raise
+        
+    def clearEnv(self):
+        try:
+            # clear hugepages setting
+            self.clearHugePages()
+
+            # unbind nic
+            self.unbindNICs()
+        except Exception as e:
+            print(f"Fail to clear dperf env: {e}")
             raise
 
     def get_redis_summary(self):
