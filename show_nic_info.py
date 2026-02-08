@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""顯示 Traffic Generator 的網卡資訊：名稱、驅動程式、PCI 位址"""
+"""Display Traffic Generator NIC info: Name, Driver, PCI Address"""
 
 from pathlib import Path
 
@@ -8,15 +8,15 @@ import yaml
 
 
 def load_config() -> dict:
-    """載入配置文件"""
+    """Load configuration file"""
     config_path = Path(__file__).parent / "config.yaml"
     with open(config_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
 def get_remote_nic_info(ssh: paramiko.SSHClient) -> list[dict]:
-    """透過 SSH 獲取遠端機器的網卡資訊"""
-    # 獲取所有網卡名稱（排除 lo）
+    """Retrieve NIC information from the remote machine via SSH"""
+    # Get all NIC names (exclude lo)
     cmd = "ls /sys/class/net | grep -v '^lo$'"
     _, stdout, _ = ssh.exec_command(cmd)
     nic_names = stdout.read().decode().strip().split("\n")
@@ -28,14 +28,14 @@ def get_remote_nic_info(ssh: paramiko.SSHClient) -> list[dict]:
 
         info = {"name": nic_name, "driver": "N/A", "pci_address": "N/A"}
 
-        # 獲取 PCI 位址
+        # Get PCI address
         cmd = f"readlink /sys/class/net/{nic_name}/device 2>/dev/null"
         _, stdout, _ = ssh.exec_command(cmd)
         pci_link = stdout.read().decode().strip()
         if pci_link:
             info["pci_address"] = pci_link.split("/")[-1]
 
-        # 獲取驅動程式
+        # Get driver
         cmd = f"readlink /sys/class/net/{nic_name}/device/driver 2>/dev/null"
         _, stdout, _ = ssh.exec_command(cmd)
         driver_link = stdout.read().decode().strip()
@@ -57,7 +57,7 @@ def main():
     password = tg.get("password")
 
     print(f"\n{'='*60}")
-    print(f"  Traffic Generator 網卡資訊 ({host})")
+    print(f"  Traffic Generator NIC Info ({host})")
     print(f"{'='*60}\n")
 
     ssh = paramiko.SSHClient()
@@ -66,7 +66,7 @@ def main():
     try:
         ssh.connect(host, port=port, username=username, password=password)
 
-        print(f"{'網卡名稱':<20} {'驅動程式':<15} {'PCI 位址'}")
+        print(f"{'Interface Name':<20} {'Driver':<15} {'PCI Address'}")
         print(f"{'-'*20} {'-'*15} {'-'*15}")
 
         nics = get_remote_nic_info(ssh)
@@ -74,7 +74,7 @@ def main():
             print(f"{nic['name']:<20} {nic['driver']:<15} {nic['pci_address']}")
 
     except Exception as e:
-        print(f"連線失敗: {e}")
+        print(f"Connection failed: {e}")
     finally:
         ssh.close()
 
