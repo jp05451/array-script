@@ -7,89 +7,89 @@ from APVSetup import APVSetup
 from trafficGenerator import TrafficGenerator
 
 def parse_arguments():
-    """解析命令列參數"""
+    """Parse command line arguments"""
     parser = argparse.ArgumentParser(
-        description='透過 SSH 連接到遠端機器並執行指定的 shell 腳本'
+        description='Connect to remote machines via SSH and execute specified shell scripts'
     )
     parser.add_argument(
         "--enable-redis",
         action='store_true',
         default=False,
-        help="是否啟用 Redis 儲存 (預設: False)"
+        help="Whether to enable Redis storage (default: False)"
     )
     parser.add_argument(
         '-s','--script',
         type=str,
         default='shell.sh',
-        help='要執行的 shell 腳本路徑 (預設: shell.sh)'
+        help='Path to the shell script to execute (default: shell.sh)'
     )
     parser.add_argument(
         '-v', '--verbose',
         action='store_true',
-        help='顯示詳細資訊'
+        help='Display detailed information'
     )
     parser.add_argument(
         '-r', '--realtime',
         action='store_true',
-        help='即時輸出執行結果'
+        help='Real-time output of execution results'
     )
     parser.add_argument(
         '-c', '--config',
         type=str,
         default='config.yaml',
-        help='指定 YAML 配置檔案路徑 (預設: config.yaml) 如果輸入其他參數，則會覆蓋 YAML 配置中的對應值'
+        help='Path to the YAML configuration file (default: config.yaml). Other arguments will override values in the YAML file'
     )
     parser.add_argument(
         '-d','--duration'
         ,type=str,
-        help='指定測試總時長 (支援格式: s=秒, m=分鐘, h=小時，例如 40s, 2m, 1h)'
+        help='Total test duration (supported formats: s=seconds, m=minutes, h=hours, e.g., 40s, 2m, 1h)'
     )
     parser.add_argument(
         '-p','--packet_size'
         ,type=int,
-        help='指定封包大小,單位為bytes'
+        help='Packet size in bytes'
     )
     parser.add_argument(
         '--sessions',
         type=int,
-        help='指定同時啟動的連線數量'
+        help='Number of simultaneous connections'
     )
     parser.add_argument(
         '-i','--packet_interval',
         type=int,
-        help='指定封包間隔時間,單位為微秒'
+        help='Packet interval in microseconds'
     )
     
     parser.add_argument(
         '-o','--output',
         type=str,
         default='results/results.csv',
-        help='指定輸出結果的檔案路徑,default為STDOUT'
+        help='Path to the results file (default results/results.csv)'
     )
     
     parser.add_argument(
         '--log',
         type=str,
         default='./logs',
-        help='指定日誌檔案資料夾 (預設: ./log)'
+        help='Logs directory (default: ./logs)'
     )
     return parser.parse_args()
 
 def argOverrideConfig(args, config):
-    """使用命令列參數覆蓋配置"""
-    # 覆蓋配置中的對應值
-    # 傳輸時長
+    """Override configuration with command line arguments"""
+    # Override configuration values
+    # Duration
     if args.duration is not None:
         config.test.traffic_generator.duration = args.duration
         
     if args.sessions is not None:
         config.test.pairs.client.cc = args.sessions
         
-    # 封包大小
+    # Packet size
     if args.packet_size is not None:
         config.test.traffic_generator.pairs.payload_size = args.packet_size
         
-    # 封包間隔時間
+    # Packet interval
     if args.packet_interval is not None:
         config.test.pairs.server.keepalive = args.packet_interval
         config.test.pairs.client.keepalive = args.packet_interval
@@ -99,43 +99,43 @@ def argOverrideConfig(args, config):
 def main():
     args = parse_arguments()
     
-    # 載入配置
+    # Load configuration
     config = Config()
     config.from_yaml(args.config)
     apv=APVSetup(config)
     apv.connect()
     apv.setupEnv()
 
-    # 建立 TrafficGenerator
+    # Create TrafficGenerator
     tg = TrafficGenerator(
         config=config,
         enable_redis=args.enable_redis
     )
 
-    # 連接
+    # Connect
     tg.connect()
 
     try:
-        # 設定環境
+        # Setup environment
         tg.setup_env()
 
-        # 執行測試
+        # Run test
         results = tg.run_test(parallel=True, enable_monitor=True)
 
         print("\n" + "=" * 60)
-        print("測試結果摘要:")
+        print("Test Summary:")
         print("=" * 60)
 
         for pair_name, pair_result in results.items():
             if pair_name == 'monitor_data':
-                print(f"\n監控數據筆數: {len(pair_result)}")
+                print(f"\nMonitoring data points: {len(pair_result)}")
             else:
                 print(f"\n{pair_name}:")
                 print(f"  Server: {pair_result.get('server')}")
                 print(f"  Client: {pair_result.get('client')}")
 
     finally:
-        # 斷開連接
+        # Disconnect
         tg.clearEnv()
         tg.disconnect()
         apv.clearEnv()
