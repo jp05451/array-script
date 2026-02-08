@@ -26,7 +26,7 @@ class APVSetup:
             pass
     
     def _execute_commands(self, commands: list, dry_run: bool = False):
-        """執行指令陣列，根據 dry_run 模式決定是列印還是執行"""
+        """Execute a list of commands, either printing them or executing them based on dry_run mode"""
         if dry_run:
             for cmd in commands:
                 print(cmd)
