@@ -68,19 +68,32 @@ class APVSetup:
 
         self._execute_commands(commands, dry_run)
         
-    def clearTCPLoadBalancer(self, pair_index, dry_run=False):
-        # Clean up commands - minimal parameters only
-        commands = [
-            f"no slb real tcp tcp_rs_{pair_index}",
-            "no slb virtual tcp tcp_slb_vs",
-            "no slb group method tcp_slb_rs_group",
-        ]
-        if dry_run:
-            print(f"Dry run: Cleaning up TCP Load Balancer for pair index {pair_index}")
+    # def clearTCPLoadBalancer(self, pair_index, dry_run=False):
+    #     # Clean up commands - minimal parameters only
+    #     commands = [
+    #         f"no slb real tcp tcp_rs_{pair_index}",
+    #         "no slb virtual tcp tcp_slb_vs",
+    #         "no slb group method tcp_slb_rs_group",
+    #     ]
+    #     if dry_run:
+    #         print(f"Dry run: Cleaning up TCP Load Balancer for pair index {pair_index}")
 
-        self._execute_commands(commands, dry_run)
+    #     self._execute_commands(commands, dry_run)
         
-    def setupTCPLoadBalancer(self, pair_index, dry_run=False):
+    def setupTCPLoadBalancer(self, pair_index, dry_run=False, clear=False):
+        if clear:
+            # Clean up commands - minimal parameters only
+            commands = [
+                f"no slb real tcp tcp_rs_{pair_index}",
+                "no slb virtual tcp tcp_slb_vs",
+                "no slb group method tcp_slb_rs_group",
+            ]
+            if dry_run:
+                print(f"Dry run: Cleaning up TCP Load Balancer for pair index {pair_index}")
+
+            self._execute_commands(commands, dry_run)
+            return
+        
         # Setup commands - full parameters
         commands = [
             # setup TCP real servers
@@ -105,19 +118,31 @@ class APVSetup:
 
         self._execute_commands(commands, dry_run)
         
-    def clearHTTPLoadBalancer(self, pair_index, dry_run=False):
-        # Clean up commands - minimal parameters only
-        commands = [
-            f"no slb real http http_rs_{pair_index}",
-            "no slb virtual http http_slb_vs",
-            "no slb group method http_slb_rs_group",
-        ]
-        if dry_run:
-            print(f"Dry run: Cleaning up HTTP Load Balancer for pair index {pair_index}")
+    # def clearHTTPLoadBalancer(self, pair_index, dry_run=False):
+    #     # Clean up commands - minimal parameters only
+    #     commands = [
+    #         f"no slb real http http_rs_{pair_index}",
+    #         "no slb virtual http http_slb_vs",
+    #         "no slb group method http_slb_rs_group",
+    #     ]
+    #     if dry_run:
+    #         print(f"Dry run: Cleaning up HTTP Load Balancer for pair index {pair_index}")
 
-        self._execute_commands(commands, dry_run)
+    #     self._execute_commands(commands, dry_run)
         
-    def setupHTTPLoadBalancer(self, pair_index, dry_run=False):
+    def setupHTTPLoadBalancer(self, pair_index, dry_run=False,clear=False):
+        if clear:
+            # Clean up commands - minimal parameters only
+            commands = [
+                f"no slb real http http_rs_{pair_index}",
+                "no slb virtual http http_slb_vs",
+                "no slb group method http_slb_rs_group",
+            ]
+            if dry_run:
+                print(f"Dry run: Cleaning up HTTP Load Balancer for pair index {pair_index}")
+
+            self._execute_commands(commands, dry_run)
+            return
     
         # Setup commands - full parameters
         commands = [
@@ -152,10 +177,10 @@ class APVSetup:
                 self.setupUDPLoadBalancer(pair_index=i,dry_run=dry_run,clear=False)
             elif protocol == 'tcp':
                 print('TCP')
-                self.setupTCPLoadBalancer(pair_index=i,dry_run=dry_run,clear=False)
+                self.setupTCPLoadBalancer(pair_index=i,dry_run=dry_run)
             elif protocol == 'http':
                 print('HTTP')
-                self.setupHTTPLoadBalancer(pair_index=i,dry_run=dry_run,clear=False)
+                self.setupHTTPLoadBalancer(pair_index=i,dry_run=dry_run)
             else:
                 raise ValueError(f"Unsupported protocol: {protocol}")
         if not dry_run:
@@ -173,10 +198,10 @@ class APVSetup:
                 self.setupUDPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
             elif protocol == 'tcp':
                 print('Clearing TCP')
-                self.clearTCPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
+                self.setupTCPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
             elif protocol == 'http':
                 print('Clearing HTTP')
-                self.clearHTTPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
+                self.setupHTTPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
             else:
                 raise ValueError(f"Unsupported protocol: {protocol}")
         if not dry_run:
@@ -211,6 +236,7 @@ def argParser():
         help="Path to the configuration YAML file"
     )
     return parser.parse_args()
+
 if __name__ == "__main__":
     args = argParser()
     config = Config()
