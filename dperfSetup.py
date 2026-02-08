@@ -1,16 +1,16 @@
 from ssh_executor import SSHExecutor
 from config import Config
 from threading import Thread
-from concurrent.futures import ThreadPoolExecutor
 from RedisDB import RedisHandler
 import re
 import os
 import csv
 from datetime import datetime
+from typing import Optional
 
 
 class dperf:
-    def __init__(self, config: Config, pair_index: int = 0, log_path: str = None, output_path: str = None,
+    def __init__(self, config: Config, pair_index: int = 0, log_path: Optional[str] = None, output_path: Optional[str] = None,
                  redis_host: str = "localhost", redis_port: int = 6379, redis_db: int = 0,
                  enable_redis: bool = True):
         self.config = config
@@ -65,7 +65,7 @@ class dperf:
         """Destructor to automatically disconnect from the server"""
         try:
             self.disconnect()
-        except:
+        except Exception:
             pass
 
     def connect(self):
@@ -481,7 +481,7 @@ class dperf:
             )
 
         except Exception as e:
-            raise (f"綁定 NIC 失敗: {e}")
+            raise Exception(f"綁定 NIC 失敗: {e}")
 
     def unbindNICs(self):
         """解綁 NIC 從 DPDK 驅動程式，恢復原生驅動"""
@@ -507,7 +507,7 @@ class dperf:
             self.executor.execute_command("sudo python3 dpdk-devbind.py --status")
 
         except Exception as e:
-            raise (f"解綁 NIC 失敗: {e}")
+            raise Exception(f"解綁 NIC 失敗: {e}")
         
     def setHugePages(self):
         """設定 hugepages
@@ -603,6 +603,12 @@ class dperf:
             return self.redis_handler.get_test_output(self.pair_index, role)
         else:
             return None
+
+    def get_redis_monitor_data(self):
+        """從 Redis 獲取監控數據"""
+        if self.redis_handler and self.redis_handler.is_connected():
+            return self.redis_handler.get_monitor_data(self.pair_index)
+        return None
 
 
 def argParser():
