@@ -1169,26 +1169,26 @@ pairs:
 請參考專案授權文件。
 
 <!-- FUNCTION_SCAN_BEGIN -->
-## 專案函式掃描結果
+## Project Function Scan Results
 
-> 掃描到 **8** 個 Python 檔案，共 **18** 個 class、**5** 個 top-level function、**95** 個 method (總計 **100** 個 function)
+> Scanned **8** Python files, found **18** classes, **4** top-level functions, and **96** methods (total **100** functions)
 
-| 檔案 | Classes | Top-level Functions | Methods | 合計 |
+| File | Classes | Top-level Functions | Methods | Total |
 |------|---------|--------------------:|--------:|-----:|
-| `APVSetup.py` | 1 | 1 | 12 | 13 |
-| `RedisDB.py` | 1 | 0 | 11 | 11 |
+| `APVSetup.py` | 1 | 1 | 10 | 11 |
 | `config.py` | 7 | 0 | 3 | 3 |
-| `dperfSetup.py` | 1 | 1 | 18 | 19 |
+| `dperfSetup.py` | 1 | 0 | 22 | 22 |
 | `main.py` | 0 | 3 | 0 | 3 |
 | `output_handler.py` | 1 | 0 | 11 | 11 |
 | `ssh_executor.py` | 6 | 0 | 30 | 30 |
-| `trafficGenerator.py` | 1 | 0 | 10 | 10 |
+| `system_monitor.py` | 1 | 0 | 9 | 9 |
+| `trafficGenerator.py` | 1 | 0 | 11 | 11 |
 
 ### `APVSetup.py`
 
 **Top-level Functions:**
 
-- `argParser()` (line 191)
+- `argParser()` (line 216)
 
 **Class `APVSetup`** (line 5):
 
@@ -1196,30 +1196,12 @@ pairs:
 - `__del__()` (line 21)
 - `_execute_commands()` (line 28)
 - `setupUDPLoadBalancer()` (line 37)
-- `clearTCPLoadBalancer()` (line 71)
 - `setupTCPLoadBalancer()` (line 83)
-- `clearHTTPLoadBalancer()` (line 108)
-- `setupHTTPLoadBalancer()` (line 120)
-- `setupEnv()` (line 143)
-- `clearEnv()` (line 164)
-- `connect()` (line 185)
-- `disconnect()` (line 188)
-
-### `RedisDB.py`
-
-**Class `RedisHandler`** (line 9):
-
-- `__init__()` (line 12)
-- `is_connected()` (line 50)
-- `save_monitor_data()` (line 54)
-- `save_test_output()` (line 101)
-- `get_monitor_data()` (line 154)
-- `get_test_output()` (line 196)
-- `clear_pair_data()` (line 248)
-- `get_all_test_outputs()` (line 279)
-- `get_specific_metrics()` (line 338)
-- `get_pair_summary()` (line 383)
-- `close()` (line 421)
+- `setupHTTPLoadBalancer()` (line 133)
+- `setupEnv()` (line 168)
+- `clearEnv()` (line 189)
+- `connect()` (line 210)
+- `disconnect()` (line 213)
 
 ### `config.py`
 
@@ -1231,33 +1213,29 @@ pairs:
 
 - _(no methods)_
 
-**Class `ServerConfig`** (line 36):
+**Class `ServerConfig`** (line 35):
 
 - _(no methods)_
 
-**Class `TrafficGeneratorPair`** (line 54):
+**Class `TrafficGeneratorPair`** (line 52):
 
 - _(no methods)_
 
-**Class `TrafficGenerator`** (line 63):
+**Class `TrafficGenerator`** (line 61):
 
 - _(no methods)_
 
-**Class `TestConfig`** (line 77):
+**Class `TestConfig`** (line 78):
 
 - _(no methods)_
 
-**Class `Config`** (line 87):
+**Class `Config`** (line 88):
 
-- `__init__()` (line 89)
-- `from_yaml()` (line 100)
-- `to_dict()` (line 191)
+- `__init__()` (line 90)
+- `from_yaml()` (line 101)
+- `to_dict()` (line 194)
 
 ### `dperfSetup.py`
-
-**Top-level Functions:**
-
-- `argParser()` (line 551)
 
 **Class `dperf`** (line 12):
 
@@ -1265,28 +1243,32 @@ pairs:
 - `__del__()` (line 64)
 - `connect()` (line 71)
 - `disconnect()` (line 77)
-- `generateServerConfig()` (line 87)
-- `generateClientConfig()` (line 125)
-- `runPairTest()` (line 166)
-- `outputResults()` (line 198)
-- `serverStart()` (line 297)
-- `clientStart()` (line 337)
-- `parseOutput()` (line 380)
-- `bindNICs()` (line 430)
-- `unbindNICs()` (line 452)
-- `setHugePages()` (line 478)
-- `setupConfig()` (line 500)
-- `setupEnv()` (line 521)
-- `get_redis_summary()` (line 535)
-- `get_redis_test_output()` (line 543)
+- `_calc_duration()` (line 87)
+- `generateServerConfig()` (line 115)
+- `generateClientConfig()` (line 156)
+- `runPairTest()` (line 200)
+- `outputResults()` (line 232)
+- `serverStart()` (line 331)
+- `clientStart()` (line 371)
+- `parseOutput()` (line 414)
+- `bindNICs()` (line 464)
+- `unbindNICs()` (line 486)
+- `setHugePages()` (line 512)
+- `clearHugePages()` (line 534)
+- `setupConfig()` (line 546)
+- `setupEnv()` (line 567)
+- `clearEnv()` (line 581)
+- `get_redis_summary()` (line 592)
+- `get_redis_test_output()` (line 600)
+- `get_redis_monitor_data()` (line 607)
 
 ### `main.py`
 
 **Top-level Functions:**
 
 - `parse_arguments()` (line 9)
-- `argOverrideConfig()` (line 72)
-- `main()` (line 94)
+- `argOverrideConfig()` (line 78)
+- `main()` (line 99)
 
 ### `output_handler.py`
 
@@ -1354,6 +1336,20 @@ pairs:
 - `__enter__()` (line 431)
 - `__exit__()` (line 437)
 
+### `system_monitor.py`
+
+**Class `SystemMonitor`** (line 11):
+
+- `__init__()` (line 17)
+- `connect()` (line 67)
+- `disconnect()` (line 71)
+- `start()` (line 77)
+- `stop()` (line 90)
+- `_monitor_loop()` (line 100)
+- `get_data()` (line 212)
+- `get_redis_monitor_data()` (line 220)
+- `is_monitoring()` (line 235)
+
 ### `trafficGenerator.py`
 
 **Class `TrafficGenerator`** (line 9):
@@ -1362,11 +1358,12 @@ pairs:
 - `connect()` (line 71)
 - `disconnect()` (line 86)
 - `setup_env()` (line 101)
-- `run_test()` (line 122)
-- `_run_sequential()` (line 165)
-- `_run_parallel()` (line 184)
-- `get_pair()` (line 213)
-- `get_monitor()` (line 226)
-- `get_pair_count()` (line 234)
+- `clearEnv()` (line 122)
+- `run_test()` (line 143)
+- `_run_sequential()` (line 186)
+- `_run_parallel()` (line 205)
+- `get_pair()` (line 234)
+- `get_monitor()` (line 247)
+- `get_pair_count()` (line 255)
 
 <!-- FUNCTION_SCAN_END -->
