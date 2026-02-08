@@ -1,5 +1,5 @@
 test:
-  # APV 管理介面配置
+  # APV management interface configuration
   # apv_management_ip: 140.118.109.106
   # apv_management_port: 6666
   apv_management_ip: 192.168.1.247
@@ -8,9 +8,9 @@ test:
   apv_password: Aclab@6768
   apv_enable_password: ""
   
-  # 流量產生器配置
+  # Traffic generator configuration
   traffic_generator:
-    # 管理介面連線資訊
+    # Management interface connection information
     dperf_path: ~/dperf
     dpdk_path: ~/dpdk
     management_ip: 192.168.1.207
@@ -20,56 +20,56 @@ test:
     username: root
     password: array
 
-    # Hugepages 配置
-    hugepage_frames: 2  # hugepage 數量 (frame 數)
-    hugepage_size: 1G   # hugepage 大小 (1G 或 2M)
+    # Hugepages configuration
+    hugepage_frames: 2  # Number of hugepages (frame count)
+    hugepage_size: 1G   # Hugepage size (1G or 2M)
 
-    # 測試總時長與 buffer time
-    duration: 40s
+    # Total test duration and buffer time
+    duration: 1m
     client_buffer_time: 33s
     server_buffer_time: 3s
 
     pairs:
-      # ============ 第 1 組 Pair ============
+      # ============ Pair 1 ============
       - client:
-          # 網卡 PCI 位址 (用於 DPDK 綁定)
+          # NIC PCI address (for DPDK binding)
           client_nic_pci: 0000:b6:00.0
 
           client_nic_name: enp182s0f0
 
-          # 網卡原生驅動程式 (用於解綁時恢復)
+          # Original NIC driver (for recovery when unbinding)
           client_nic_driver: i40e
 
-          # 客戶端起始 IP 位址
+          # Client starting IP address
           client_ip: 10.10.11.1
 
-          # 模擬的客戶端 IP 數量 (用於產生多個源 IP)
+          # Number of simulated client IPs (used to generate multiple source IPs)
           source_ip_nums: 60
 
-          # 客戶端預設閘道
+          # Client default gateway
           client_gw: 10.10.11.100
 
-          # 測試持續時間已由 traffic_generator.duration 控制
+          # Test duration is controlled by traffic_generator.duration
 
-          # 使用的 CPU 核心數量 (影響並行處理能力)
+          # Number of CPU cores used (affects parallel processing capability)
           client_cpu_core: 6
 
-          # 每次傳送的封包批次大小 (影響傳送效率)
+          # Packet batch size per transmission (affects transmission efficiency)
           tx_burst: 1024
 
-          # 同時啟動的連線數量
+          # Number of connections launched simultaneously
           launch_num: 100
 
-          # 併發連線數 (2k = 2000 個併發連線)
+          # Concurrent connections (2k = 2000 concurrent connections)
           cc: 2k
 
-          # TCP keepalive 間隔時間 (us=微秒, ms=毫秒, s=秒)
+          # TCP keepalive interval (us=microsecond, ms=millisecond, s=second)
           keepalive: 1us
 
-          # 啟用 RSS (Receive Side Scaling，多佇列網卡負載均衡)
+          # Enable RSS (Receive Side Scaling, multi-queue NIC load balancing)
           rss: true
 
-          # DPDK 記憶體池大小 (MB)
+          # DPDK memory pool size (MB)
           socket_mem: 1024
 
           virtual_server_ip: 10.10.11.101
@@ -79,44 +79,44 @@ test:
           server_port_nums: 1
 
         server:
-          # 網卡 PCI 位址 (用於 DPDK 綁定)
+          # NIC PCI address (for DPDK binding)
           server_nic_pci: 0000:b6:00.1
 
           server_nic_name: enp182s0f1
 
-          # 網卡原生驅動程式 (用於解綁時恢復)
+          # Original NIC driver (for recovery when unbinding)
           server_nic_driver: i40e
 
-          # 伺服器 IP 位址
+          # Server IP address
           server_ip: 10.10.12.1
 
-          # 伺服器預設閘道
+          # Server default gateway
           server_gw: 10.10.12.100
 
-          # 測試持續時間已由 traffic_generator.duration 控制
+          # Test duration is controlled by traffic_generator.duration
 
-          # 使用的 CPU 核心數量
+          # Number of CPU cores used
           server_cpu_core: 14
 
-          # 每次傳送的封包批次大小
+          # Packet batch size per transmission
           tx_burst: 1024
 
-          # TCP keepalive 間隔時間
+          # TCP keepalive interval
           keepalive: 1us
 
-          # 啟用 RSS (多佇列網卡負載均衡)
+          # Enable RSS (multi-queue NIC load balancing)
           rss: true
 
-          # DPDK 記憶體池大小 (MB)
+          # DPDK memory pool size (MB)
           socket_mem: 1024
 
-          # 監聽的起始埠號
+          # Starting port number to listen on
           listen_port: 6768
 
-          # 監聽的埠數量 (可用於分散負載)
+          # Number of ports to listen on (for spreading load)
           listen_port_nums: 1
-        # 每個封包的有效負載大小 (bytes)
+        # Payload size per packet (bytes)
         payload_size: 1024
 
-        # 傳輸協定 (tcp/udp/http)
+        # Protocol (tcp/udp/http)
         protocol: tcp
