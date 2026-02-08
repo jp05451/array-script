@@ -29,7 +29,7 @@ class dperf:
             config.test.traffic_generator.password,
             log_path=f"{log_path}/dperf_pair{pair_index}.log",
         )
-        # 為 server 和 client 建立獨立的 executor
+        # Create independent executors for server and client
         self.server_executor = SSHExecutor(
             config.test.traffic_generator.management_ip,
             config.test.traffic_generator.management_port,
@@ -47,19 +47,19 @@ class dperf:
         self.serverOutput = None
         self.clientOutput = None
 
-        # 初始化 Redis Handler
+        # Initialize Redis Handler
         self.enable_redis = enable_redis
         self.redis_handler = None
         if self.enable_redis:
             try:
                 self.redis_handler = RedisHandler(host=redis_host, port=redis_port, db=redis_db)
                 if self.redis_handler.is_connected():
-                    print(f"[Pair {self.pair_index}] Redis 已啟用並成功連接")
+                    print(f"[Pair {self.pair_index}] Redis enabled and connected successfully")
                 else:
-                    print(f"[Pair {self.pair_index}] Redis 連接失敗，將僅使用本地儲存")
+                    print(f"[Pair {self.pair_index}] Redis connection failed, will use local storage only")
                     self.redis_handler = None
             except Exception as e:
-                print(f"[Pair {self.pair_index}] Redis 初始化失敗: {e}，將僅使用本地儲存")
+                print(f"[Pair {self.pair_index}] Redis initialization failed: {e}, will use local storage only")
                 self.redis_handler = None
     def __del__(self):
         """Destructor to automatically disconnect from the server"""
@@ -69,24 +69,24 @@ class dperf:
             pass
 
     def connect(self):
-        """連接到遠端主機"""
+        """Connect to remote host"""
         self.executor.connect(persistent_session=True)
         self.server_executor.connect(persistent_session=True)
         self.client_executor.connect(persistent_session=True)
         
     def disconnect(self):
-        """斷開與遠端主機的連接"""
+        """Disconnect from remote host"""
         self.executor.close()
         self.server_executor.close()
         self.client_executor.close()
 
-        # 關閉 Redis 連接
+        # Close Redis connection
         if self.redis_handler:
             self.redis_handler.close()
     
     def _calc_duration(self, base_duration, buffer_time):
-        # base_duration, buffer_time: 字串如 '40s', '1m', '2h'
-        # 一律轉為秒運算，回傳最小單位為 1s
+        # base_duration, buffer_time: strings like '40s', '1m', '2h'
+        # Always converted to seconds for calculation, returns unit in 1s
         def parse_time_to_seconds(s):
             if s is None:
                 return 0
@@ -113,10 +113,10 @@ class dperf:
         return f"{int(result_seconds)}s"
 
     def generateServerConfig(self):
-        """產生 dperf server 配置檔案"""
+        """Generate dperf server configuration file"""
         server_cfg = self.pair.server
         tg = self.config.test.traffic_generator
-        # 計算 server duration（加上 client buffer time）
+        # Calculate server duration (add client buffer time)
         duration = self._calc_duration(tg.duration, tg.client_buffer_time)
 
         config_lines = [
@@ -154,10 +154,10 @@ class dperf:
         return "\n".join(config_lines)
 
     def generateClientConfig(self):
-        """產生 dperf client 配置檔案"""
+        """Generate dperf client configuration file"""
         client_cfg = self.pair.client
         tg = self.config.test.traffic_generator
-        # 計算 client duration（加上 server buffer time）
+        # Calculate client duration (add server buffer time)
         duration = self._calc_duration(tg.duration, tg.server_buffer_time)
 
         config_lines = [
@@ -198,29 +198,29 @@ class dperf:
         return "\n".join(config_lines)
 
     def runPairTest(self, monitor=None):
-        """執行 pair 測試
+        """Execute pair test
 
         Args:
-            monitor: 可選的 SystemMonitor 實例，若提供則不會在此方法內啟動/停止監控
-                    （由外部統一管理監控的生命週期）
+            monitor: Optional SystemMonitor instance, if provided, monitoring will not be started/stopped here
+                    (Monitoring lifecycle managed externally)
         """
-        # 建立兩個獨立的 thread 來同時測試 server 和 client
+        # Create two independent threads to test server and client simultaneously
         serverThread = Thread(target=self.serverStart, name=f"Server-Pair{self.pair_index}")
         clientThread = Thread(target=self.clientStart, name=f"Client-Pair{self.pair_index}")
 
-        print(f"[Pair {self.pair_index}] 開始同時執行 server 和 client 測試...")
+        print(f"[Pair {self.pair_index}] Starting simultaneous server and client tests...")
         serverThread.start()
         clientThread.start()
 
-        # 等待兩個 thread 完成
+        # Wait for both threads to finish
         serverThread.join()
         clientThread.join()
 
-        print(f"[Pair {self.pair_index}] 測試完成")
-        print(f"[Pair {self.pair_index}] Server 輸出: {self.serverOutput}")
-        print(f"[Pair {self.pair_index}] Client 輸出: {self.clientOutput}")
+        print(f"[Pair {self.pair_index}] Test completed")
+        print(f"[Pair {self.pair_index}] Server output: {self.serverOutput}")
+        print(f"[Pair {self.pair_index}] Client output: {self.clientOutput}")
 
-        # 獲取監控數據（如果有提供 monitor）
+        # Get monitoring data (if monitor is provided)
         monitor_data = monitor.get_data() if monitor else []
         self.outputResults(monitor_data=monitor_data)
 
@@ -230,20 +230,20 @@ class dperf:
         }
         
     def outputResults(self, monitor_data=None):
-        """輸出測試結果到指定路徑的檔案
+        """Output test results to the specified file path
 
         Args:
-            monitor_data: 監控數據列表，由外部 SystemMonitor 提供
+            monitor_data: Monitoring data list provided by external SystemMonitor
         """
         if self.outputPath is None or self.outputPath == "":
             self.outputPath = f"./results/dperf_pair{self.pair_index}_results.csv"
 
-        # 檢查輸出目錄是否存在，如果不存在則建立
+        # Check if the output directory exists, create it if not
         output_dir = os.path.dirname(self.outputPath)
         if output_dir and not os.path.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
 
-        # 嘗試從 Redis 讀取數據
+        # Try to read data from Redis
         server_data = self.serverOutput
         client_data = self.clientOutput
         if monitor_data is None:
@@ -252,52 +252,52 @@ class dperf:
 
         if self.enable_redis and self.redis_handler and self.redis_handler.is_connected():
             try:
-                # 從 Redis 獲取 server 數據
+                # Get server data from Redis
                 redis_server = self.get_redis_test_output('server')
                 if redis_server and 'metrics' in redis_server:
                     server_data = redis_server['metrics']
-                    print(f"[Pair {self.pair_index}] 已從 Redis 載入 Server 輸出數據")
+                    print(f"[Pair {self.pair_index}] Loaded Server output data from Redis")
                 
-                # 從 Redis 獲取 client 數據
+                # Get client data from Redis
                 redis_client = self.get_redis_test_output('client')
                 if redis_client and 'metrics' in redis_client:
                     client_data = redis_client['metrics']
-                    print(f"[Pair {self.pair_index}] 已從 Redis 載入 Client 輸出數據")
+                    print(f"[Pair {self.pair_index}] Loaded Client output data from Redis")
                 
-                # 從 Redis 獲取 monitor 數據
+                # Get monitor data from Redis
                 redis_monitor = self.get_redis_monitor_data()
                 if redis_monitor:
                     monitor_data = redis_monitor
-                    print(f"[Pair {self.pair_index}] 已從 Redis 載入 Monitor 數據")
+                    print(f"[Pair {self.pair_index}] Loaded Monitor data from Redis")
             except Exception as e:
-                print(f"[Pair {self.pair_index}] 從 Redis 讀取數據失敗: {e}，使用本地數據")
+                print(f"[Pair {self.pair_index}] Failed to read data from Redis: {e}, using local data")
             
 
 
 
         with open(self.outputPath, 'w') as f:
             
-            # 寫入 CSV
+            # Write CSV
             writer = csv.writer(f)
             
-            # 寫入標題行
+            # Write header row
             writer.writerow(['Metric', 'Server', 'Client'])
             writer.writerow(['duration',self.config.test.traffic_generator.duration,self.config.test.traffic_generator.duration])
             
-            # 取得所有可能的 key
+            # Get all possible keys
             all_keys = set()
             if server_data:
                 all_keys.update(server_data.keys())
             if client_data:
                 all_keys.update(client_data.keys())
             
-            # 寫入每個指標的資料
+            # Write data for each metric
             for key in sorted(all_keys):
                 server_value = server_data.get(key, 'N/A') if server_data else 'N/A'
                 client_value = client_data.get(key, 'N/A') if client_data else 'N/A'
                 writer.writerow([key, server_value, client_value])
             
-        # 寫入監控數據到 CSV
+        # Write monitoring data to CSV
         monitor_output_dir = os.path.dirname(self.outputPath)
         if not os.path.exists(monitor_output_dir):
             os.makedirs(monitor_output_dir, exist_ok=True)
@@ -306,10 +306,10 @@ class dperf:
         with open(monitor_csv_path, 'w', newline='') as f:
             writer = csv.writer(f)
 
-            # 寫入標題行
+            # Write header row
             writer.writerow(['Timestamp', 'CPU_Usage_Percent', 'RAM_Used_MB', 'RAM_Total_MB', 'RAM_Usage_Percent'])
 
-            # monitor_data 是一個 list，每個元素是一個 dict
+            # monitor_data is a list, each element is a dict
             if isinstance(monitor_data, list):
                 for data_point in monitor_data:
                     writer.writerow([
@@ -320,35 +320,35 @@ class dperf:
                         data_point.get('ram_usage', '')
                     ])
             elif isinstance(monitor_data, dict):
-                # 如果是 dict（舊版本相容）
+                # For dict (backward compatibility)
                 for key, value in monitor_data.items():
                     writer.writerow([key, value])
 
 
-        print(f"[Pair {self.pair_index}] 測試結果已輸出到 {self.outputPath}")
+        print(f"[Pair {self.pair_index}] Test results have been exported to {self.outputPath}")
 
 
     def serverStart(self):
-        """啟動 dperf server 並收集流量數據"""
+        """Start dperf server and collect traffic data"""
         try:
-            print(f"[Pair {self.pair_index}] Server: 建立連接...")
+            print(f"[Pair {self.pair_index}] Server: Connecting...")
             # self.server_executor.connect(persistent_session=True)
 
-            print(f"[Pair {self.pair_index}] Server: 切換目錄到 dperf...")
+            print(f"[Pair {self.pair_index}] Server: Changing directory to dperf...")
             self.server_executor.execute_command(
                 f"cd {self.config.test.traffic_generator.dperf_path}"
             )
 
             server_cmd = f"sudo ./build/dperf -c config/server_pair{self.pair_index}.conf"
-            print(f"[Pair {self.pair_index}] Server: 執行命令 -> {server_cmd}")
+            print(f"[Pair {self.pair_index}] Server: Executing command -> {server_cmd}")
             # log = self.server_executor.execute_command(server_cmd)
             log = self.server_executor.execute_script('shell/server.sh')
 
-            print(f"[Pair {self.pair_index}] Server: 解析輸出...")
+            print(f"[Pair {self.pair_index}] Server: Parsing output...")
             output = self.parseOutput(log)
             self.serverOutput = output
 
-            # 寫入 Redis（如果啟用且有輸出數據）
+            # Write to Redis (if enabled and output data exists)
             if output and self.redis_handler and self.redis_handler.is_connected():
                 timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 success = self.redis_handler.save_test_output(
@@ -358,38 +358,38 @@ class dperf:
                     timestamp=timestamp
                 )
                 if success:
-                    print(f"[Pair {self.pair_index}] Server: 輸出數據已寫入 Redis")
+                    print(f"[Pair {self.pair_index}] Server: Output data written to Redis")
                 else:
-                    print(f"[Pair {self.pair_index}] Server: 警告 - 輸出數據寫入 Redis 失敗")
+                    print(f"[Pair {self.pair_index}] Server: Warning - Failed to write output data to Redis")
 
-            print(f"[Pair {self.pair_index}] Server: 測試完成，斷開連接")
+            print(f"[Pair {self.pair_index}] Server: Test completed, disconnecting")
             self.server_executor.close()
         except Exception as e:
-            print(f"[Pair {self.pair_index}] Server 執行失敗: {e}")
+            print(f"[Pair {self.pair_index}] Server execution failed: {e}")
             self.serverOutput = None
 
     def clientStart(self):
-        """啟動 dperf client 並收集流量數據"""
+        """Start dperf client and collect traffic data"""
         try:
-            print(f"[Pair {self.pair_index}] Client: 建立連接...")
+            print(f"[Pair {self.pair_index}] Client: Connecting...")
             # self.client_executor.connect(persistent_session=True)
 
-            print(f"[Pair {self.pair_index}] Client: 切換目錄到 dperf...")
+            print(f"[Pair {self.pair_index}] Client: Changing directory to dperf...")
             self.client_executor.execute_command(
                 f"cd {self.config.test.traffic_generator.dperf_path}"
             )
 
             client_cmd = f"sudo ./build/dperf -c config/client_pair{self.pair_index}.conf"
-            print(f"[Pair {self.pair_index}] Client: 執行命令 -> {client_cmd}")
+            print(f"[Pair {self.pair_index}] Client: Executing command -> {client_cmd}")
             # log = self.client_executor.execute_command(client_cmd)
             log = self.client_executor.execute_script('shell/client.sh')
 
 
-            print(f"[Pair {self.pair_index}] Client: 解析輸出...")
+            print(f"[Pair {self.pair_index}] Client: Parsing output...")
             output = self.parseOutput(log)
             self.clientOutput = output
 
-            # 寫入 Redis（如果啟用且有輸出數據）
+            # Write to Redis (if enabled and output data exists)
             if output and self.redis_handler and self.redis_handler.is_connected():
                 timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 success = self.redis_handler.save_test_output(
@@ -399,14 +399,14 @@ class dperf:
                     timestamp=timestamp
                 )
                 if success:
-                    print(f"[Pair {self.pair_index}] Client: 輸出數據已寫入 Redis")
+                    print(f"[Pair {self.pair_index}] Client: Output data written to Redis")
                 else:
-                    print(f"[Pair {self.pair_index}] Client: 警告 - 輸出數據寫入 Redis 失敗")
+                    print(f"[Pair {self.pair_index}] Client: Warning - Failed to write output data to Redis")
 
-            print(f"[Pair {self.pair_index}] Client: 測試完成，斷開連接")
+            print(f"[Pair {self.pair_index}] Client: Test completed, disconnecting")
             self.client_executor.close()
         except Exception as e:
-            print(f"[Pair {self.pair_index}] Client 執行失敗: {e}")
+            print(f"[Pair {self.pair_index}] Client execution failed: {e}")
             self.clientOutput = None
 
     
@@ -414,39 +414,39 @@ class dperf:
     def parseOutput(self, log):
         log = log[0]
 
-        # 移除 ANSI 轉義序列（顏色代碼）
+        # Remove ANSI escape sequences (color codes)
         ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
         log = ansi_escape.sub('', log)
 
-        # 找出 "dperf Test Finished" 字串並取出之後的內容
+        # Find "dperf Test Finished" string and extract content after it
         if "dperf Test Finished" in log:
             index = log.find("Total Numbers")
             result = log[index:].strip()
 
-            # 將統計數據解析為 dict
+            # Parse stats into dict
             stats_dict = {}
             lines = result.split("\n")
 
-            for line in lines[1:]:  # 跳過第一行 "Total Numbers:"
+            for line in lines[1:]:  # Skip first line "Total Numbers:"
                 line = line.strip()
                 if not line:
                     continue
 
-                # 分割每一行的統計項目
+                # Split each line's statistical items
                 parts = line.split()
                 i = 0
                 while i < len(parts):
-                    # 每個項目是 key-value 對
+                    # Each item is a key-value pair
                     if i + 1 < len(parts):
                         key = parts[i]
                         value = parts[i + 1]
 
-                        # 移除數字中的逗號並轉換為整數
+                        # Remove commas from numbers and convert to integer
                         try:
                             value_clean = value.replace(",", "")
                             stats_dict[key] = int(value_clean)
                         except ValueError:
-                            # 如果無法轉換為整數，保留原始字串
+                            # If conversion to int fails, keep original string
                             stats_dict[key] = value
 
                         i += 2
@@ -454,15 +454,15 @@ class dperf:
                         i += 1
 
             # print(result)
-            # print("統計數據 (dict 格式):")
+            # print("Statistics (dict format):")
             # print(stats_dict)
             return stats_dict
         else:
-            print("未找到 'dperf Test Finished' 字串")
+            print("String 'dperf Test Finished' not found")
             return None
 
     def bindNICs(self):
-        """綁定 NIC 到 DPDK 驅動程式"""
+        """Bind NICs to DPDK driver"""
         try:
             self.executor.execute_command(
                 f"cd {self.config.test.traffic_generator.dpdk_path}/usertools"
@@ -481,40 +481,40 @@ class dperf:
             )
 
         except Exception as e:
-            raise Exception(f"綁定 NIC 失敗: {e}")
+            raise Exception(f"Failed to bind NIC: {e}")
 
     def unbindNICs(self):
-        """解綁 NIC 從 DPDK 驅動程式，恢復原生驅動"""
+        """Unbind NICs from DPDK driver and restore original driver"""
         try:
             self.executor.execute_command(
                 f"cd {self.config.test.traffic_generator.dpdk_path}/usertools"
             )
-            # 將 NIC 綁定回原生驅動程式
+            # Bind NIC back to original driver
             self.executor.execute_command(
                 f"sudo python3 dpdk-devbind.py -b {self.pair.client.client_nic_driver} {self.pair.client.client_nic_pci}"
             )
             self.executor.execute_command(
                 f"sudo python3 dpdk-devbind.py -b {self.pair.server.server_nic_driver} {self.pair.server.server_nic_pci}"
             )
-            # 重新啟動網路連接
+            # Restart network connection
             self.executor.execute_command(
                 f"nmcli connection up {self.pair.client.client_nic_name}"
             )
             self.executor.execute_command(
                 f"nmcli connection up {self.pair.server.server_nic_name}"
             )
-            # 顯示狀態
+            # Display status
             self.executor.execute_command("sudo python3 dpdk-devbind.py --status")
 
         except Exception as e:
-            raise Exception(f"解綁 NIC 失敗: {e}")
+            raise Exception(f"Failed to unbind NIC: {e}")
         
     def setHugePages(self):
-        """設定 hugepages
+        """Set up hugepages
 
         Args:
-            pages: hugepages 數量
-            size: hugepage 大小 (1G 或 2M)
+            pages: number of hugepages
+            size: hugepage size (1G or 2M)
         """
         pages = self.config.test.traffic_generator.hugepage_frames
         size = self.config.test.traffic_generator.hugepage_size
@@ -528,7 +528,7 @@ class dperf:
                 f"sudo python3 dpdk-hugepages.py -p {size} --setup {total_mem}"
             )
         except Exception as e:
-            print(f"設定 hugepages 失敗: {e}")
+            print(f"Failed to set hugepages: {e}")
             raise
     
     def clearHugePages(self):
@@ -544,8 +544,8 @@ class dperf:
             raise
 
     def setupConfig(self):
-        """建立 dperf 配置檔案"""
-        print("=============建立 dperf 配置檔案=============")
+        """Create dperf configuration files"""
+        print("=============Creating dperf configuration files=============")
         with open(f"config/server_pair{self.pair_index}.conf", 'w') as f:
             f.write(self.generateServerConfig())
         with open(f"config/client_pair{self.pair_index}.conf", 'w') as f:
@@ -565,17 +565,17 @@ class dperf:
         self.executor.execute_command("ls -l config/")
 
     def setupEnv(self):
-        """設定 dperf 環境"""
+        """Set up dperf environment"""
         try:
-            # 設定 hugepages
+            # Set up hugepages
             self.setHugePages()
-            # 綁定 NICs
+            # Bind NICs
             self.bindNICs()
-            # 建立配置檔案
+            # Create configuration files
             self.setupConfig()
             
         except Exception as e:
-            print(f"設定 dperf 環境失敗: {e}")
+            print(f"Failed to set up dperf environment: {e}")
             raise
         
     def clearEnv(self):
@@ -590,7 +590,7 @@ class dperf:
             raise
 
     def get_redis_summary(self):
-        """獲取 Redis 中該 pair 的數據摘要"""
+        """Get pair data summary from Redis"""
         if self.redis_handler and self.redis_handler.is_connected():
             summary = self.redis_handler.get_pair_summary(self.pair_index)
             return summary
@@ -598,14 +598,14 @@ class dperf:
             return None
 
     def get_redis_test_output(self, role):
-        """從 Redis 獲取測試輸出數據（server 或 client）"""
+        """Get test output data (server or client) from Redis"""
         if self.redis_handler and self.redis_handler.is_connected():
             return self.redis_handler.get_test_output(self.pair_index, role)
         else:
             return None
 
     def get_redis_monitor_data(self):
-        """從 Redis 獲取監控數據"""
+        """Get monitor data from Redis"""
         if self.redis_handler and self.redis_handler.is_connected():
             return self.redis_handler.get_monitor_data(self.pair_index)
         return None
@@ -614,67 +614,67 @@ class dperf:
 # def argParser():
 #     import argparse
 
-#     parser = argparse.ArgumentParser(description="dperf 測試設定")
-#     parser.add_argument('--config', type=str, default='config.yaml', help='配置檔案路徑')
-#     parser.add_argument('--pair_index', type=int, default=0, help='要測試的 pair 索引')
-#     parser.add_argument('--enable_redis', action='store_true', help='是否啟用 Redis 儲存測試數據')
+#     parser = argparse.ArgumentParser(description="dperf Test Settings")
+#     parser.add_argument('--config', type=str, default='config.yaml', help='Path to configuration file')
+#     parser.add_argument('--pair_index', type=int, default=0, help='Index of pair to test')
+#     parser.add_argument('--enable_redis', action='store_true', help='Whether to enable Redis for testing data storage')
 #     return parser.parse_args()
 
 
 # if __name__ == "__main__":
 #     args= argParser()
-#     # 載入配置檔案
+#     # Load configuration file
 #     config = Config()
 #     config.from_yaml(args.config)
 
-#     # 建立 dperf 實例，啟用 Redis
+#     # Create dperf instance, enable Redis
 #     test = dperf(config=config, pair_index=args.pair_index, enable_redis=args.enable_redis)
-#     # 連接到遠端主機
+#     # Connect to remote host
 #     test.connect()
 
-#     # 設定環境
+#     # Set up environment
 #     test.setupEnv()
 
-#     # 執行測試
+#     # Execute test
 #     output = test.runPairTest()
 
 #     print("\n" + "="*60)
-#     print("測試輸出:")
+#     print("Test Output:")
 #     print("="*60)
 #     print(output)
 
-#     # 如果 Redis 啟用，顯示 Redis 中的數據摘要
+#     # If Redis is enabled, display summary of data in Redis
 #     if test.redis_handler and test.redis_handler.is_connected():
 #         print("\n" + "="*60)
-#         print("Redis 數據摘要:")
+#         print("Redis Data Summary:")
 #         print("="*60)
 #         summary = test.get_redis_summary()
 #         if summary:
 #             print(f"Pair Index: {summary['pair_index']}")
-#             print(f"監控數據筆數: {summary['monitor_count']}")
-#             print(f"Server 輸出筆數: {summary['server_output_count']}")
-#             print(f"Client 輸出筆數: {summary['client_output_count']}")
+#             print(f"Monitor Data Count: {summary['monitor_count']}")
+#             print(f"Server Output Count: {summary['server_output_count']}")
+#             print(f"Client Output Count: {summary['client_output_count']}")
 
-#         # 顯示最新的 server 和 client 輸出
+#         # Display latest server and client output
 #         print("\n" + "="*60)
-#         print("Redis 中的最新測試輸出:")
+#         print("Latest Test Output in Redis:")
 #         print("="*60)
 
 #         server_data = test.get_redis_test_output('server')
 #         if server_data:
-#             print(f"\nServer 輸出 (時間: {server_data.get('timestamp')}):")
+#             print(f"\nServer Output (Time: {server_data.get('timestamp')}):")
 #             for key, value in server_data.items():
 #                 if key not in ['pair_index', 'role', 'timestamp']:
 #                     print(f"  {key}: {value}")
 
 #         client_data = test.get_redis_test_output('client')
 #         if client_data:
-#             print(f"\nClient 輸出 (時間: {client_data.get('timestamp')}):")
+#             print(f"\nClient Output (Time: {client_data.get('timestamp')}):")
 #             for key, value in client_data.items():
 #                 if key not in ['pair_index', 'role', 'timestamp']:
 #                     print(f"  {key}: {value}")
 
-#    # 斷開連接
+#    # Disconnect
 #     test.disconnect()
     
     
