@@ -2,8 +2,15 @@
 
 此專案提供自動化腳本來執行 DPerf 網路效能測試，透過 SSH 連接遠端主機，自動配置 DPDK 環境並運行測試。
 
+## 版本資訊
+
+- DPerf：1.9.0
+- DPDK：25.11.0-rc2
+- ArrayOS：Rel.APV.10.7.3.26
+
 ## 目錄
 
+- [版本資訊](#版本資訊)
 - [核心模組說明](#核心模組說明)
   - [1. dperfSetup.py](#1-dperfsetuppy)
   - [2. ssh_executor.py](#2-ssh_executorpy)
@@ -580,7 +587,6 @@ __init__(self, host: str = "localhost", port: int = 6379, db: int = 0, password:
   | `client_ip` | str | "" | 客戶端 IP |
   | `source_ip_nums` | int | 0 | 模擬源 IP 數量 |
   | `client_gw` | str | "" | 客戶端閘道 |
-  | `client_duration` | str | "" | 測試持續時間 |
   | `client_cpu_core` | int | 0 | CPU 核心數 |
   | `tx_burst` | int | 0 | 傳送批次大小 |
   | `launch_num` | int | 0 | 啟動連線數 |
@@ -602,7 +608,6 @@ __init__(self, host: str = "localhost", port: int = 6379, db: int = 0, password:
   | `server_nic_driver` | str | "i40e" | 網卡驅動程式 |
   | `server_ip` | str | "" | 伺服器 IP |
   | `server_gw` | str | "" | 伺服器閘道 |
-  | `server_duration` | str | "" | 測試持續時間 |
   | `server_cpu_core` | int | 0 | CPU 核心數 |
   | `tx_burst` | int | 0 | 傳送批次大小 |
   | `keepalive` | str | "" | keepalive 間隔 |
@@ -630,6 +635,9 @@ __init__(self, host: str = "localhost", port: int = 6379, db: int = 0, password:
   - `dperf_path: str`：DPerf 安裝路徑
   - `hugepage_frames: int`：Hugepage 數量（預設：2）
   - `hugepage_size: str`：Hugepage 大小（預設："1G"）
+  - `duration: str`：基礎測試時間
+  - `client_buffer_time: str`：加到 server 測試時間的緩衝
+  - `server_buffer_time: str`：加到 client 測試時間的緩衝
   - `pairs: List[TrafficGeneratorPair]`：測試配對列表
 
 ##### `TestConfig`
@@ -1031,6 +1039,11 @@ test:
     hugepage_frames: 2
     hugepage_size: 1G
 
+    # 測試時間與緩衝
+    duration: 40s
+    client_buffer_time: 1s
+    server_buffer_time: 3s
+
     pairs:
       - client:
           # Client 端配置
@@ -1061,6 +1074,12 @@ test:
 | `management_port` | SSH 連接埠號 | 22 |
 | `username` | SSH 登入使用者名稱 | root |
 | `password` | SSH 登入密碼 | array |
+| `duration` | 基礎測試時間 (s/m/h) | 40s |
+| `client_buffer_time` | 加到 server 測試時間的緩衝 (s/m/h) | 1s |
+| `server_buffer_time` | 加到 client 測試時間的緩衝 (s/m/h) | 3s |
+| `duration` | 基礎測試時間 (s/m/h) | 40s |
+| `client_buffer_time` | 加到 server 測試時間的緩衝 (s/m/h) | 1s |
+| `server_buffer_time` | 加到 client 測試時間的緩衝 (s/m/h) | 3s |
 
 #### 3. Hugepages 配置
 
@@ -1081,7 +1100,6 @@ test:
 | `client_ip` | 客戶端起始 IP 位址 | 10.10.11.1 |
 | `source_ip_nums` | 模擬的源 IP 數量 | 60 |
 | `client_gw` | 客戶端預設閘道 | 10.10.11.100 |
-| `client_duration` | 測試持續時間 (s/m/h) | 1s, 570s |
 | `client_cpu_core` | 使用的 CPU 核心數量 | 6 |
 | `tx_burst` | 每次傳送的封包批次大小 | 1024 |
 | `launch_num` | 同時啟動的連線數量 | 100 |
@@ -1102,7 +1120,6 @@ test:
 | `server_nic_driver` | 網卡原生驅動程式 | i40e |
 | `server_ip` | 伺服器 IP 位址 | 10.10.12.1 |
 | `server_gw` | 伺服器預設閘道 | 10.10.12.100 |
-| `server_duration` | 測試持續時間 (s/m/h) | 40s, 600s |
 | `server_cpu_core` | 使用的 CPU 核心數量 | 14 |
 | `tx_burst` | 每次傳送的封包批次大小 | 1024 |
 | `keepalive` | TCP keepalive 間隔 | 1us |
@@ -1121,7 +1138,7 @@ test:
 ### 配置建議
 
 1. **CPU 核心數**：Server 端通常需要比 Client 端更多核心，建議 server_cpu_core ≥ client_cpu_core
-2. **測試時間**：Server 端應比 Client 端多執行數秒，以確保完整接收所有流量
+2. **測試時間**：以 `traffic_generator.duration` 作為基礎時間，並用緩衝時間讓 client duration = duration + server_buffer_time、server duration = duration + client_buffer_time
 3. **記憶體配置**：socket_mem 應根據併發連線數和封包大小調整，建議至少 1024 MB
 4. **併發連線數**：cc 值會影響資源使用，應根據測試目標和系統能力設定
 5. **RSS 設定**：多核心環境下建議啟用 RSS 以提升效能
@@ -1948,7 +1965,6 @@ __init__(self, host: str = "localhost", port: int = 6379, db: int = 0, password:
   | `client_ip` | str | "" | 客戶端 IP |
   | `source_ip_nums` | int | 0 | 模擬源 IP 數量 |
   | `client_gw` | str | "" | 客戶端閘道 |
-  | `client_duration` | str | "" | 測試持續時間 |
   | `client_cpu_core` | int | 0 | CPU 核心數 |
   | `tx_burst` | int | 0 | 傳送批次大小 |
   | `launch_num` | int | 0 | 啟動連線數 |
@@ -1970,7 +1986,6 @@ __init__(self, host: str = "localhost", port: int = 6379, db: int = 0, password:
   | `server_nic_driver` | str | "i40e" | 網卡驅動程式 |
   | `server_ip` | str | "" | 伺服器 IP |
   | `server_gw` | str | "" | 伺服器閘道 |
-  | `server_duration` | str | "" | 測試持續時間 |
   | `server_cpu_core` | int | 0 | CPU 核心數 |
   | `tx_burst` | int | 0 | 傳送批次大小 |
   | `keepalive` | str | "" | keepalive 間隔 |
@@ -1998,6 +2013,9 @@ __init__(self, host: str = "localhost", port: int = 6379, db: int = 0, password:
   - `dperf_path: str`：DPerf 安裝路徑
   - `hugepage_frames: int`：Hugepage 數量（預設：2）
   - `hugepage_size: str`：Hugepage 大小（預設："1G"）
+  - `duration: str`：基礎測試時間
+  - `client_buffer_time: str`：加到 server 測試時間的緩衝
+  - `server_buffer_time: str`：加到 client 測試時間的緩衝
   - `pairs: List[TrafficGeneratorPair]`：測試配對列表
 
 ##### `TestConfig`
@@ -2449,7 +2467,6 @@ test:
 | `client_ip` | 客戶端起始 IP 位址 | 10.10.11.1 |
 | `source_ip_nums` | 模擬的源 IP 數量 | 60 |
 | `client_gw` | 客戶端預設閘道 | 10.10.11.100 |
-| `client_duration` | 測試持續時間 (s/m/h) | 1s, 570s |
 | `client_cpu_core` | 使用的 CPU 核心數量 | 6 |
 | `tx_burst` | 每次傳送的封包批次大小 | 1024 |
 | `launch_num` | 同時啟動的連線數量 | 100 |
@@ -2470,7 +2487,6 @@ test:
 | `server_nic_driver` | 網卡原生驅動程式 | i40e |
 | `server_ip` | 伺服器 IP 位址 | 10.10.12.1 |
 | `server_gw` | 伺服器預設閘道 | 10.10.12.100 |
-| `server_duration` | 測試持續時間 (s/m/h) | 40s, 600s |
 | `server_cpu_core` | 使用的 CPU 核心數量 | 14 |
 | `tx_burst` | 每次傳送的封包批次大小 | 1024 |
 | `keepalive` | TCP keepalive 間隔 | 1us |
@@ -2489,7 +2505,7 @@ test:
 ### 配置建議
 
 1. **CPU 核心數**：Server 端通常需要比 Client 端更多核心，建議 server_cpu_core ≥ client_cpu_core
-2. **測試時間**：Server 端應比 Client 端多執行數秒，以確保完整接收所有流量
+2. **測試時間**：以 `traffic_generator.duration` 作為基礎時間，並用緩衝時間讓 client duration = duration + server_buffer_time、server duration = duration + client_buffer_time
 3. **記憶體配置**：socket_mem 應根據併發連線數和封包大小調整，建議至少 1024 MB
 4. **併發連線數**：cc 值會影響資源使用，應根據測試目標和系統能力設定
 5. **RSS 設定**：多核心環境下建議啟用 RSS 以提升效能
