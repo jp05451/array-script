@@ -4,7 +4,7 @@ import yaml
 
 @dataclass
 class Client:
-    """客戶端配置"""
+    """Client configuration"""
     nic_pci: str = ""
     ip: str = ""
     gw: str = ""
@@ -12,7 +12,7 @@ class Client:
 
 @dataclass
 class ClientConfig:
-    """客戶端配置"""
+    """Client configuration"""
     client_nic_pci: str = ""
     client_nic_name: str = ""
     client_nic_driver: str = "i40e"
@@ -33,7 +33,7 @@ class ClientConfig:
 
 @dataclass
 class ServerConfig:
-    """伺服器配置"""
+    """Server configuration"""
     server_nic_pci: str = ""
     server_nic_name: str = ""
     server_nic_driver: str = "i40e"
@@ -50,7 +50,7 @@ class ServerConfig:
 
 @dataclass
 class TrafficGeneratorPair:
-    """流量產生器配對配置"""
+    """Traffic generator pair configuration"""
     client: ClientConfig = field(default_factory=ClientConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
     payload_size: int = 0
@@ -59,7 +59,7 @@ class TrafficGeneratorPair:
 
 @dataclass
 class TrafficGenerator:
-    """流量產生器配置"""
+    """Traffic generator configuration"""
     management_ip: str = ""
     management_port: int = 0
     username: str = ""
@@ -76,7 +76,7 @@ class TrafficGenerator:
 
 @dataclass
 class TestConfig:
-    """測試配置"""
+    """Test configuration"""
     apv_management_ip: str = ""
     apv_management_port: int = 0
     apv_username: str = ""
@@ -86,12 +86,12 @@ class TestConfig:
 
 
 class Config:
-    """主配置類別"""
+    """Main configuration class"""
     def __init__(self, yaml_path: str = None):
-        """初始化配置
+        """Initialize configuration
 
         Args:
-            yaml_path: YAML 配置檔案路徑，如果提供則自動載入
+            yaml_path: Path to YAML configuration file, automatically loaded if provided
         """
         self.test = TestConfig()
 
@@ -99,25 +99,25 @@ class Config:
             self.from_yaml(yaml_path)
 
     def from_yaml(self, yaml_path: str) -> None:
-        """從 YAML 檔案載入配置，直接更新當前物件的屬性
+        """Load configuration from YAML file, directly updating properties of the current object
 
         Args:
-            yaml_path: YAML 配置檔案路徑
+            yaml_path: Path to YAML configuration file
         """
         with open(yaml_path, 'r', encoding='utf-8') as f:
             data = yaml.safe_load(f)
 
         test_data = data['test']
 
-        # 解析 traffic_generator
+        # Parse traffic_generator
         tg_data = test_data.get('traffic_generator', {})
         pairs_data_list = tg_data.get('pairs', [])
 
-        # 解析所有的 pairs (現在是列表)
+        # Parse all pairs (now a list)
         pairs_list = []
 
         for pairs_data in pairs_data_list:
-            # 解析 client 配置
+            # Parse client configuration
             client_data = pairs_data.get('client', {})
             client_config = ClientConfig(
                 client_nic_pci=client_data.get('client_nic_pci', ''),
@@ -138,7 +138,7 @@ class Config:
                 virtual_server_port_nums=client_data.get('server_port_nums', 1)
             )
 
-            # 解析 server 配置
+            # Parse server configuration
             server_data = pairs_data.get('server', {})
             server_config = ServerConfig(
                 server_nic_pci=server_data.get('server_nic_pci', ''),
@@ -155,7 +155,7 @@ class Config:
                 listen_port_nums=server_data.get('listen_port_nums', 1)
             )
 
-            # 建立 TrafficGeneratorPair 物件
+            # Create TrafficGeneratorPair object
             pair = TrafficGeneratorPair(
                 client=client_config,
                 server=server_config,
@@ -164,7 +164,7 @@ class Config:
             )
             pairs_list.append(pair)
 
-        # 建立 TrafficGenerator 物件
+        # Create TrafficGenerator object
         traffic_generator = TrafficGenerator(
             management_ip=tg_data.get('management_ip', ''),
             management_port=tg_data.get('management_port', 22),
@@ -180,7 +180,7 @@ class Config:
             pairs=pairs_list
         )
 
-        # 直接更新當前物件的 test 屬性
+        # Directly update the test property of the current object
         self.test = TestConfig(
             apv_management_ip=test_data.get('apv_management_ip', ''),
             apv_management_port=test_data.get('apv_management_port', 0),
@@ -192,10 +192,10 @@ class Config:
         return self
 
     def to_dict(self) -> Dict[str, Any]:
-        """將配置轉換為字典
+        """Convert configuration to dictionary
 
         Returns:
-            Dict[str, Any]: 配置字典
+            Dict[str, Any]: Configuration dictionary
         """
 
         pairs_list = []
