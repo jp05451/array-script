@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""輸出處理器模組 - 支援輸出到 stdout 或檔案"""
+"""Output Handler Module - Supports output to stdout or file"""
 
 from typing import Optional
 import os
@@ -7,55 +7,55 @@ import re
 
 
 class OutputHandler:
-    """輸出處理器 - 支援輸出到 stdout 或檔案"""
+    """Output Handler - Supports output to stdout or file"""
 
     @staticmethod
     def clean_ansi(text: str) -> str:
         """
-        移除 ANSI 轉義序列和終端控制字符
+        Remove ANSI escape sequences and terminal control characters
 
         Args:
-            text: 包含 ANSI 控制字符的文本
+            text: Text containing ANSI control characters
 
         Returns:
-            清理後的純文本
+            Cleaned plain text
         """
         ansi_escape = re.compile(r'\x1b\[[0-9;]*[mGKHJF]|\r|\x1b\[\?[0-9]*[hl]')
         return ansi_escape.sub('', text)
 
     def __init__(self, output_path: Optional[str] = None):
         """
-        初始化輸出處理器
+        Initialize Output Handler
 
         Args:
-            output_path: 輸出檔案路徑，若為 None 則輸出到 stdout
+            output_path: Path to the output file, if None then output to stdout
         """
         self.output_path = output_path
         self._file_handle = None
 
-        # 如果指定了輸出檔案，開啟檔案
+        # If an output file is specified, open the file
         if self.output_path:
             try:
-                # 如果目錄不存在，則建立目錄
+                # If the directory does not exist, create it
                 output_dir = os.path.dirname(self.output_path)
                 if output_dir and not os.path.exists(output_dir):
                     os.makedirs(output_dir, exist_ok=True)
                 
                 self._file_handle = open(self.output_path, 'w+', encoding='utf-8')
-                print(f"輸出將寫入到檔案: {self.output_path}")
+                print(f"Output will be written to file: {self.output_path}")
             except Exception as e:
-                print(f"警告：無法開啟輸出檔案 {self.output_path}: {e}")
-                print("將改為輸出到 stdout")
+                print(f"Warning: Unable to open output file {self.output_path}: {e}")
+                print("Switching output to stdout")
                 self._file_handle = None
 
     def write(self, message: str, end: str = '\n', flush: bool = False) -> None:
         """
-        寫入訊息到輸出目標
+        Write message to output target
 
         Args:
-            message: 要輸出的訊息
-            end: 結尾字符（預設為換行）
-            flush: 是否立即刷新緩衝區
+            message: Message to output
+            end: End character (default is newline)
+            flush: Whether to immediately flush the buffer
         """
         message = self.clean_ansi(message)
         if self._file_handle:
@@ -67,44 +67,44 @@ class OutputHandler:
             print(f"{message}", end=end, flush=flush)
 
     def print_header(self, script_path: str) -> None:
-        """打印執行頭部信息"""
-        self.write(f"\n開始執行 {script_path} 中的指令...\n")
+        """Print execution header information"""
+        self.write(f"\nStarting execution of commands in {script_path}...\n")
         self.write("-" * 50)
 
     def print_footer(self, interrupted: bool = False) -> None:
-        """打印執行尾部信息"""
+        """Print execution footer information"""
         self.write("-" * 50)
         if interrupted:
-            self.write("\n程式已被使用者中斷")
+            self.write("\nProgram interrupted by user")
         else:
-            self.write("\n執行完成")
+            self.write("\nExecution completed")
 
     def print_exit_status(self, exit_status: int) -> None:
-        """打印退出狀態"""
-        self.write(f"\n執行完成，退出狀態碼：{exit_status}")
+        """Print exit status"""
+        self.write(f"\nExecution completed, exit status code: {exit_status}")
 
-    def print_output(self, output: str, prefix: str = "執行結果") -> None:
-        """打印標準輸出"""
+    def print_output(self, output: str, prefix: str = "Execution Results") -> None:
+        """Print standard output"""
         if output:
-            self.write(f"{prefix}：")
+            self.write(f"{prefix}:")
             self.write(output)
 
     def print_error(self, error: str) -> None:
-        """打印錯誤輸出"""
+        """Print error output"""
         if error:
-            self.write(f"\n錯誤輸出：\n{error}")
+            self.write(f"\nError output:\n{error}")
 
     def close(self) -> None:
-        """關閉輸出檔案（如果有開啟）"""
+        """Close output file (if opened)"""
         if self._file_handle:
             self._file_handle.close()
             self._file_handle = None
 
     def __enter__(self):
-        """支持 with 語句"""
+        """Support with statement"""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """支持 with 語句"""
+        """Support with statement"""
         self.close()
         return False
