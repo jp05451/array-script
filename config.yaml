@@ -24,6 +24,11 @@ test:
     hugepage_frames: 2  # hugepage 數量 (frame 數)
     hugepage_size: 1G   # hugepage 大小 (1G 或 2M)
 
+    # 測試總時長與 buffer time
+    duration: 40s
+    client_buffer_time: 33s
+    server_buffer_time: 3s
+
     pairs:
       # ============ 第 1 組 Pair ============
       - client:
@@ -44,9 +49,7 @@ test:
           # 客戶端預設閘道
           client_gw: 10.10.11.100
 
-          # 測試持續時間 (支援格式: s=秒, m=分鐘, h=小時)
-          # 不知道為什麼 client都會比設定的多33秒才結束
-          client_duration: 1s
+          # 測試持續時間已由 traffic_generator.duration 控制
 
           # 使用的 CPU 核心數量 (影響並行處理能力)
           client_cpu_core: 6
@@ -90,9 +93,7 @@ test:
           # 伺服器預設閘道
           server_gw: 10.10.12.100
 
-          # 測試持續時間
-          # server 會比設定的多3秒才結束
-          server_duration: 40s
+          # 測試持續時間已由 traffic_generator.duration 控制
 
           # 使用的 CPU 核心數量
           server_cpu_core: 14

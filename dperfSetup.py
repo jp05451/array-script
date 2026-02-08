@@ -84,9 +84,47 @@ class dperf:
         if self.redis_handler:
             self.redis_handler.close()
     
+    def _calc_duration(self, base_duration, buffer_time):
+        # base_duration, buffer_time: 字串如 '40s', '1m', '2h'
+        def parse_time(s):
+            if s.endswith('ms'):
+                return float(s[:-2]) / 1000
+            elif s.endswith('us'):
+                return float(s[:-2]) / 1_000_000
+            elif s.endswith('s'):
+                return float(s[:-1])
+            elif s.endswith('m'):
+                return float(s[:-1]) * 60
+            elif s.endswith('h'):
+                return float(s[:-1]) * 3600
+            else:
+                try:
+                    return float(s)
+                except Exception:
+                    return 0
+        base = parse_time(base_duration)
+        buf = parse_time(buffer_time)
+        result = max(base - buf, 0.001)
+        # 輸出格式與 base_duration 相同單位
+        if base_duration.endswith('ms'):
+            return f"{int(result * 1000)}ms"
+        elif base_duration.endswith('us'):
+            return f"{int(result * 1_000_000)}us"
+        elif base_duration.endswith('s'):
+            return f"{int(result)}s"
+        elif base_duration.endswith('m'):
+            return f"{int(result // 60)}m"
+        elif base_duration.endswith('h'):
+            return f"{int(result // 3600)}h"
+        else:
+            return str(result)
+
     def generateServerConfig(self):
         """產生 dperf server 配置檔案"""
         server_cfg = self.pair.server
+        tg = self.config.test.traffic_generator
+        # 計算 server duration
+        duration = self._calc_duration(tg.duration, tg.server_buffer_time)
 
         config_lines = [
             "mode            server",
@@ -101,7 +139,7 @@ class dperf:
             [
                 f"socket_mem      {server_cfg.socket_mem}",
                 f"protocol        {self.pair.protocol}",
-                f"duration        {server_cfg.server_duration}",
+                f"duration        {duration}",
                 f"payload_size    {self.pair.payload_size}",
                 f"keepalive       {server_cfg.keepalive}",
                 "",
@@ -125,6 +163,9 @@ class dperf:
     def generateClientConfig(self):
         """產生 dperf client 配置檔案"""
         client_cfg = self.pair.client
+        tg = self.config.test.traffic_generator
+        # 計算 client duration
+        duration = self._calc_duration(tg.duration, tg.client_buffer_time)
 
         config_lines = [
             "mode            client",
@@ -141,7 +182,7 @@ class dperf:
                 f"socket_mem      {client_cfg.socket_mem}",
                 f"protocol        {self.pair.protocol}",
                 f"payload_size    {self.pair.payload_size}",
-                f"duration        {client_cfg.client_duration}",
+                f"duration        {duration}",
                 "",
                 f"cc              {client_cfg.cc}",
                 f"keepalive       {client_cfg.keepalive}",
@@ -248,7 +289,7 @@ class dperf:
             
             # 寫入標題行
             writer.writerow(['Metric', 'Server', 'Client'])
-            writer.writerow(['duration'])
+            writer.writerow(['duration',self.config.test.traffic_generator.duration,self.config.test.traffic_generator.duration])
             
             # 取得所有可能的 key
             all_keys = set()
@@ -639,4 +680,4 @@ if __name__ == "__main__":
     
     
     
-    ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL_1FAEFB6177B4672DEE07F9D3AFC62588CCD2631EDCF22E8CCC1FB35B501C9C86
+    

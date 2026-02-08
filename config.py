@@ -19,7 +19,6 @@ class ClientConfig:
     client_ip: str = ""
     source_ip_nums: int = 0
     client_gw: str = ""
-    client_duration: str = ""
     client_cpu_core: int = 0
     tx_burst: int = 0
     launch_num: int = 0
@@ -40,7 +39,6 @@ class ServerConfig:
     server_nic_driver: str = "i40e"
     server_ip: str = ""
     server_gw: str = ""
-    server_duration: str = ""
     server_cpu_core: int = 0
     tx_burst: int = 0
     keepalive: str = ""
@@ -70,6 +68,9 @@ class TrafficGenerator:
     dperf_path: str = ""
     hugepage_frames: int = 2
     hugepage_size: str = "1G"
+    duration: str = ""
+    client_buffer_time: str = "0s"
+    server_buffer_time: str = "0s"
     pairs: List[TrafficGeneratorPair] = field(default_factory=list)
 
 
@@ -114,6 +115,7 @@ class Config:
 
         # 解析所有的 pairs (現在是列表)
         pairs_list = []
+
         for pairs_data in pairs_data_list:
             # 解析 client 配置
             client_data = pairs_data.get('client', {})
@@ -124,7 +126,6 @@ class Config:
                 client_ip=client_data.get('client_ip', ''),
                 source_ip_nums=client_data.get('source_ip_nums', 0),
                 client_gw=client_data.get('client_gw', ''),
-                client_duration=client_data.get('client_duration', ''),
                 client_cpu_core=client_data.get('client_cpu_core', 0),
                 tx_burst=client_data.get('tx_burst', 0),
                 launch_num=client_data.get('launch_num', 0),
@@ -145,7 +146,6 @@ class Config:
                 server_nic_driver=server_data.get('server_nic_driver', 'i40e'),
                 server_ip=server_data.get('server_ip', ''),
                 server_gw=server_data.get('server_gw', ''),
-                server_duration=server_data.get('server_duration', ''),
                 server_cpu_core=server_data.get('server_cpu_core', 0),
                 tx_burst=server_data.get('tx_burst', 0),
                 keepalive=server_data.get('keepalive', ''),
@@ -174,6 +174,9 @@ class Config:
             dperf_path=tg_data.get('dperf_path', ''),
             hugepage_frames=tg_data.get('hugepage_frames', 2),
             hugepage_size=tg_data.get('hugepage_size', '1G'),
+            duration=tg_data.get('duration', ''),
+            client_buffer_time=tg_data.get('client_buffer_time', '0s'),
+            server_buffer_time=tg_data.get('server_buffer_time', '0s'),
             pairs=pairs_list
         )
 
@@ -194,6 +197,7 @@ class Config:
         Returns:
             Dict[str, Any]: 配置字典
         """
+
         pairs_list = []
         for pair in self.test.traffic_generator.pairs:
             pairs_list.append({
@@ -204,7 +208,6 @@ class Config:
                     'client_ip': pair.client.client_ip,
                     'source_ip_nums': pair.client.source_ip_nums,
                     'client_gw': pair.client.client_gw,
-                    'client_duration': pair.client.client_duration,
                     'client_cpu_core': pair.client.client_cpu_core,
                     'tx_burst': pair.client.tx_burst,
                     'launch_num': pair.client.launch_num,
@@ -222,7 +225,6 @@ class Config:
                     'server_nic_driver': pair.server.server_nic_driver,
                     'server_ip': pair.server.server_ip,
                     'server_gw': pair.server.server_gw,
-                    'server_duration': pair.server.server_duration,
                     'server_cpu_core': pair.server.server_cpu_core,
                     'tx_burst': pair.server.tx_burst,
                     'keepalive': pair.server.keepalive,
@@ -251,6 +253,9 @@ class Config:
                     'dperf_path': self.test.traffic_generator.dperf_path,
                     'hugepage_frames': self.test.traffic_generator.hugepage_frames,
                     'hugepage_size': self.test.traffic_generator.hugepage_size,
+                    'duration': self.test.traffic_generator.duration,
+                    'client_buffer_time': self.test.traffic_generator.client_buffer_time,
+                    'server_buffer_time': self.test.traffic_generator.server_buffer_time,
                     'pairs': pairs_list
                 }
             }
