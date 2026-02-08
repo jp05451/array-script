@@ -12,6 +12,12 @@ def parse_arguments():
         description='透過 SSH 連接到遠端機器並執行指定的 shell 腳本'
     )
     parser.add_argument(
+        "--enable-redis",
+        action='store_true',
+        default=False,
+        help="是否啟用 Redis 儲存 (預設: False)"
+    )
+    parser.add_argument(
         '-s','--script',
         type=str,
         default='shell.sh',
@@ -35,8 +41,8 @@ def parse_arguments():
     )
     parser.add_argument(
         '-d','--duration'
-        ,type=int,
-        help='指定測試持續時間,單位為秒'
+        ,type=str,
+        help='指定測試總時長 (支援格式: s=秒, m=分鐘, h=小時，例如 40s, 2m, 1h)'
     )
     parser.add_argument(
         '-p','--packet_size'
@@ -74,8 +80,7 @@ def argOverrideConfig(args, config):
     # 覆蓋配置中的對應值
     # 傳輸時長
     if args.duration is not None:
-        config.test.pairs.client.duration = args.duration
-        config.test.pairs.server.duration = args.duration
+        config.test.traffic_generator.duration = args.duration
         
     if args.sessions is not None:
         config.test.pairs.client.cc = args.sessions
@@ -104,7 +109,7 @@ def main():
     # 建立 TrafficGenerator
     tg = TrafficGenerator(
         config=config,
-        enable_redis=True
+        enable_redis=args.enable_redis
     )
 
     # 連接
