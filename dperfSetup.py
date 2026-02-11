@@ -197,13 +197,27 @@ class dperf:
 
         return "\n".join(config_lines)
 
-    def runPairTest(self, monitor=None):
+    def runPairTest(self, monitor=None, dry_run=False):
         """Execute pair test
 
         Args:
             monitor: Optional SystemMonitor instance, if provided, monitoring will not be started/stopped here
                     (Monitoring lifecycle managed externally)
+            dry_run: If True, skip actual dperf execution and return dummy results
         """
+        if dry_run:
+            print(f"[Pair {self.pair_index}] [DRY RUN] Skipping actual dperf traffic generation")
+            server_cmd = f"sudo ./build/dperf -c config/server_pair{self.pair_index}.conf"
+            client_cmd = f"sudo ./build/dperf -c config/client_pair{self.pair_index}.conf"
+            print(f"[Pair {self.pair_index}] [DRY RUN] Server command would be: {server_cmd}")
+            print(f"[Pair {self.pair_index}] [DRY RUN] Client command would be: {client_cmd}")
+            self.serverOutput = None
+            self.clientOutput = None
+            return {
+                'server': None,
+                'client': None
+            }
+
         # Create two independent threads to test server and client simultaneously
         serverThread = Thread(target=self.serverStart, name=f"Server-Pair{self.pair_index}")
         clientThread = Thread(target=self.clientStart, name=f"Client-Pair{self.pair_index}")

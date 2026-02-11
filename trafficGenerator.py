@@ -141,7 +141,8 @@ class TrafficGenerator:
         print("[TrafficGenerator] Environment clearance completed")
 
     def run_test(self, pair_indices: list|None = None, enable_monitor: bool = True,
-                 parallel: bool = False, monitor_output_file: str|None = None):
+                 parallel: bool = False, monitor_output_file: str|None = None,
+                 dry_run: bool = False):
         """Execute test
 
         Args:
@@ -149,6 +150,7 @@ class TrafficGenerator:
             enable_monitor: Whether to enable monitoring
             parallel: Whether to execute multiple pair tests in parallel
             monitor_output_file: Monitoring data output file path
+            dry_run: If True, skip actual dperf traffic generation
 
         Returns:
             dict: Test results, containing server/client output and monitoring data for each pair
@@ -156,38 +158,39 @@ class TrafficGenerator:
         if pair_indices is None:
             pair_indices = list(range(self.pair_count))
 
-        print(f"[TrafficGenerator] Starting test (Pairs: {pair_indices}, Parallel: {parallel}, Monitor: {enable_monitor})...")
+        print(f"[TrafficGenerator] Starting test (Pairs: {pair_indices}, Parallel: {parallel}, Monitor: {enable_monitor}, DryRun: {dry_run})...")
 
         results = {}
 
-        # Start monitoring
-        if enable_monitor:
+        # Start monitoring (skip in dry run mode)
+        if enable_monitor and not dry_run:
             self.monitor.start(output_file=monitor_output_file)
             time.sleep(2)  # Ensure monitoring is started
 
         try:
             if parallel:
                 # Execute all pair tests in parallel
-                results = self._run_parallel(pair_indices)
+                results = self._run_parallel(pair_indices, dry_run=dry_run)
             else:
                 # Execute each pair test sequentially
-                results = self._run_sequential(pair_indices)
+                results = self._run_sequential(pair_indices, dry_run=dry_run)
         finally:
             # Stop monitoring
-            if enable_monitor:
+            if enable_monitor and not dry_run:
                 self.monitor.stop()
 
         # Add monitoring data to results
-        results['monitor_data'] = self.monitor.get_data()
+        results['monitor_data'] = self.monitor.get_data() if not dry_run else []
 
         print("[TrafficGenerator] Test completed")
         return results
 
-    def _run_sequential(self, pair_indices: list):
+    def _run_sequential(self, pair_indices: list, dry_run: bool = False):
         """Execute tests sequentially
 
         Args:
             pair_indices: List of pair indices to test
+            dry_run: If True, skip actual dperf traffic generation
 
         Returns:
             dict: Test results
@@ -196,17 +199,18 @@ class TrafficGenerator:
         for i in pair_indices:
             if i < len(self.pairs):
                 print(f"[TrafficGenerator] Executing Pair {i} test...")
-                result = self.pairs[i].runPairTest(monitor=self.monitor)
+                result = self.pairs[i].runPairTest(monitor=self.monitor, dry_run=dry_run)
                 results[f'pair_{i}'] = result
             else:
                 print(f"[TrafficGenerator] Warning: Pair {i} does not exist")
         return results
 
-    def _run_parallel(self, pair_indices: list):
+    def _run_parallel(self, pair_indices: list, dry_run: bool = False):
         """Execute tests in parallel
 
         Args:
             pair_indices: List of pair indices to test
+            dry_run: If True, skip actual dperf traffic generation
 
         Returns:
             dict: Test results
@@ -216,7 +220,7 @@ class TrafficGenerator:
 
         def run_pair(pair_index):
             if pair_index < len(self.pairs):
-                result = self.pairs[pair_index].runPairTest(monitor=self.monitor)
+                result = self.pairs[pair_index].runPairTest(monitor=self.monitor, dry_run=dry_run)
                 results[f'pair_{pair_index}'] = result
 
         # Establish and start all test threads

@@ -73,6 +73,12 @@ def parse_arguments():
         default='./logs',
         help='Logs directory (default: ./logs)'
     )
+    parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        default=False,
+        help='Dry run mode: execute all setup/teardown steps but skip actual dperf traffic generation'
+    )
     return parser.parse_args()
 
 def argOverrideConfig(args, config):
@@ -102,9 +108,10 @@ def main():
     # Load configuration
     config = Config()
     config.from_yaml(args.config)
+    dry_run = args.dry_run
     apv=APVSetup(config)
     apv.connect()
-    apv.setupEnv()
+    apv.setupEnv(dry_run=dry_run)
 
     # Create TrafficGenerator
     tg = TrafficGenerator(
@@ -120,7 +127,7 @@ def main():
         tg.setup_env()
 
         # Run test
-        results = tg.run_test(parallel=True, enable_monitor=True)
+        results = tg.run_test(parallel=True, enable_monitor=True, dry_run=dry_run)
 
         print("\n" + "=" * 60)
         print("Test Summary:")
@@ -138,7 +145,7 @@ def main():
         # Disconnect
         tg.clearEnv()
         tg.disconnect()
-        apv.clearEnv()
+        apv.clearEnv(dry_run=dry_run)
         apv.disconnect()
 
 
