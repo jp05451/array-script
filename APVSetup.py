@@ -173,13 +173,10 @@ class APVSetup:
         for i in range(len(self.pairs)):
             protocol = self.pairs[i].protocol.lower()
             if protocol == 'udp':
-                print('UDP')
                 self.setupUDPLoadBalancer(pair_index=i,dry_run=dry_run,clear=False)
             elif protocol == 'tcp':
-                print('TCP')
                 self.setupTCPLoadBalancer(pair_index=i,dry_run=dry_run)
             elif protocol == 'http':
-                print('HTTP')
                 self.setupHTTPLoadBalancer(pair_index=i,dry_run=dry_run)
             else:
                 raise ValueError(f"Unsupported protocol: {protocol}")
