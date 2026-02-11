@@ -9,3 +9,5 @@ results*
 *.yaml
 config/
 *.csv
+shell/*pair*.sh
+.vscode
