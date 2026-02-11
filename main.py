@@ -108,9 +108,11 @@ def main():
     # Load configuration
     config = Config()
     config.from_yaml(args.config)
+    argOverrideConfig(args, config)
     dry_run = args.dry_run
     apv=APVSetup(config)
     apv.connect()
+    apv.clearEnv()
     apv.setupEnv(dry_run=dry_run)
 
     # Create TrafficGenerator
