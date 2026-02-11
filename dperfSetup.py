@@ -340,11 +340,18 @@ class dperf:
 
 
         print(f"[Pair {self.pair_index}] Test results have been exported to {self.outputPath}")
-
+            
 
     def serverStart(self):
+        def generateServerShell():
+            with open(f'shell/server_pair{self.pair_index}.sh', 'w+') as f:
+                f.write("cd " + self.config.test.traffic_generator.dperf_path + "\n")
+                f.write(f"sudo ./build/dperf -c config/server_pair{self.pair_index}.conf\n")
         """Start dperf server and collect traffic data"""
         try:
+            
+            generateServerShell()
+            
             print(f"[Pair {self.pair_index}] Server: Connecting...")
             # self.server_executor.connect(persistent_session=True)
 
@@ -356,7 +363,7 @@ class dperf:
             server_cmd = f"sudo ./build/dperf -c config/server_pair{self.pair_index}.conf"
             print(f"[Pair {self.pair_index}] Server: Executing command -> {server_cmd}")
             # log = self.server_executor.execute_command(server_cmd)
-            log = self.server_executor.execute_script('shell/server.sh')
+            log = self.server_executor.execute_script(f'shell/server_pair{self.pair_index}.sh')
 
             print(f"[Pair {self.pair_index}] Server: Parsing output...")
             output = self.parseOutput(log)
@@ -381,10 +388,17 @@ class dperf:
         except Exception as e:
             print(f"[Pair {self.pair_index}] Server execution failed: {e}")
             self.serverOutput = None
+        finally:
+            os.remove(f'shell/server_pair{self.pair_index}.sh')
 
     def clientStart(self):
         """Start dperf client and collect traffic data"""
+        def generateClientShell():
+            with open(f'shell/client_pair{self.pair_index}.sh', 'w+') as f:
+                f.write("cd " + self.config.test.traffic_generator.dperf_path + "\n")
+                f.write(f"sudo ./build/dperf -c config/client_pair{self.pair_index}.conf\n")
         try:
+            generateClientShell()
             print(f"[Pair {self.pair_index}] Client: Connecting...")
             # self.client_executor.connect(persistent_session=True)
 
@@ -396,9 +410,7 @@ class dperf:
             client_cmd = f"sudo ./build/dperf -c config/client_pair{self.pair_index}.conf"
             print(f"[Pair {self.pair_index}] Client: Executing command -> {client_cmd}")
             # log = self.client_executor.execute_command(client_cmd)
-            log = self.client_executor.execute_script('shell/client.sh')
-
-
+            log = self.client_executor.execute_script(f'shell/client_pair{self.pair_index}.sh')
             print(f"[Pair {self.pair_index}] Client: Parsing output...")
             output = self.parseOutput(log)
             self.clientOutput = output
@@ -422,6 +434,8 @@ class dperf:
         except Exception as e:
             print(f"[Pair {self.pair_index}] Client execution failed: {e}")
             self.clientOutput = None
+        finally:
+            os.remove(f'shell/client_pair{self.pair_index}.sh')
 
     
 
