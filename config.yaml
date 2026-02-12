@@ -33,7 +33,7 @@ test:
       # ============ Pair 1 ============
       - client:
           # NIC PCI address (for DPDK binding)
-          client_nic_pci: 0000:b6:00.0
+          client_nic_pci: "0000:b6:00.0"
 
           client_nic_name: enp182s0f0
 
@@ -80,7 +80,7 @@ test:
 
         server:
           # NIC PCI address (for DPDK binding)
-          server_nic_pci: 0000:b6:00.1
+          server_nic_pci: "0000:b6:00.1"
 
           server_nic_name: enp182s0f1
 
