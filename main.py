@@ -114,6 +114,7 @@ def main():
     apv.connect()
     apv.clearEnv()
     apv.setupEnv(dry_run=dry_run)
+    apv.disconnect()
 
     # Create TrafficGenerator
     tg = TrafficGenerator(
@@ -147,6 +148,7 @@ def main():
         # Disconnect
         tg.clearEnv()
         tg.disconnect()
+        apv.connect()
         apv.clearEnv(dry_run=dry_run)
         apv.disconnect()
 
