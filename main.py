@@ -18,12 +18,6 @@ def parse_arguments():
         help="Whether to enable Redis storage (default: False)"
     )
     parser.add_argument(
-        '-s','--script',
-        type=str,
-        default='shell.sh',
-        help='Path to the shell script to execute (default: shell.sh)'
-    )
-    parser.add_argument(
         '-v', '--verbose',
         action='store_true',
         help='Display detailed information'
@@ -47,15 +41,15 @@ def parse_arguments():
     parser.add_argument(
         '-p','--packet_size'
         ,type=int,
-        help='Packet size in bytes'
+        help='Packet size in bytes e.g., 1024'
     )
     parser.add_argument(
         '--sessions',
         type=int,
-        help='Number of simultaneous connections'
+        help='Number of simultaneous connections e.g., 2k'
     )
     parser.add_argument(
-        '-i','--packet_interval',
+        '--packet_interval',
         type=int,
         help='Packet interval in microseconds'
     )
@@ -108,18 +102,23 @@ def main():
     # Load configuration
     config = Config()
     config.from_yaml(args.config)
+
     argOverrideConfig(args, config)
-    dry_run = args.dry_run
-    apv=APVSetup(config)
+
+    dryRun=args.dry_run
+
+    apv=APVSetup(config,log_path=args.log)
     apv.connect()
     apv.clearEnv()
-    apv.setupEnv(dry_run=dry_run)
+    apv.setupEnv(dry_run=dryRun)
     apv.disconnect()
 
     # Create TrafficGenerator
     tg = TrafficGenerator(
         config=config,
-        enable_redis=args.enable_redis
+        enable_redis=args.enable_redis,
+        log_path=args.log,
+        output_path=args.output
     )
 
     # Connect
@@ -130,7 +129,7 @@ def main():
         tg.setup_env()
 
         # Run test
-        results = tg.run_test(parallel=True, enable_monitor=True, dry_run=dry_run)
+        results = tg.run_test(parallel=True, enable_monitor=True, dry_run=dryRun)
 
         print("\n" + "=" * 60)
         print("Test Summary:")
@@ -148,8 +147,9 @@ def main():
         # Disconnect
         tg.clearEnv()
         tg.disconnect()
+
         apv.connect()
-        apv.clearEnv(dry_run=dry_run)
+        apv.clearEnv(dry_run=dryRun)
         apv.disconnect()
 
 
