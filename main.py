@@ -39,19 +39,19 @@ def parse_arguments():
         help='Total test duration (supported formats: s=seconds, m=minutes, h=hours, e.g., 40s, 2m, 1h)'
     )
     parser.add_argument(
-        '-p','--packet_size'
+        '-p','--packet-size'
         ,type=int,
         help='Packet size in bytes e.g., 1024'
     )
     parser.add_argument(
         '--sessions',
-        type=int,
+        type=str,
         help='Number of simultaneous connections e.g., 2k'
     )
     parser.add_argument(
-        '--packet_interval',
-        type=int,
-        help='Packet interval in microseconds'
+        '--packet-interval',
+        type=str,
+        help='Packet interval in microseconds e.g., 1000us'
     )
     
     parser.add_argument(
@@ -81,19 +81,22 @@ def argOverrideConfig(args, config):
     # Duration
     if args.duration is not None:
         config.test.traffic_generator.duration = args.duration
-        
-    if args.sessions is not None:
-        config.test.pairs.client.cc = args.sessions
-        
-    # Packet size
-    if args.packet_size is not None:
-        config.test.traffic_generator.pairs.payload_size = args.packet_size
-        
-    # Packet interval
-    if args.packet_interval is not None:
-        config.test.pairs.server.keepalive = args.packet_interval
-        config.test.pairs.client.keepalive = args.packet_interval
-
+    
+    if args.sessions is not None or args.packet_size is not None or args.packet_interval is not None:
+        for pair in config.test.traffic_generator.pairs:
+            
+            # Sessions
+            if args.sessions is not None:
+                pair.client.cc = args.sessions
+                
+            # Packet size
+            if args.packet_size is not None:
+                pair.payload_size = args.packet_size
+                
+            # Packet interval
+            if args.packet_interval is not None:
+                pair.server.keepalive = args.packet_interval
+                pair.client.keepalive = args.packet_interval
 
 
 def main():
@@ -104,8 +107,11 @@ def main():
     config.from_yaml(args.config)
 
     argOverrideConfig(args, config)
+    
+    print(f"config args {config.to_dict()}")
 
     dryRun=args.dry_run
+    print(f"Dry run mode: {dryRun}")
 
     apv=APVSetup(config,log_path=args.log)
     apv.connect()
@@ -149,7 +155,7 @@ def main():
         tg.disconnect()
 
         apv.connect()
-        apv.clearEnv(dry_run=dryRun)
+        apv.clearEnv()
         apv.disconnect()
 
 
