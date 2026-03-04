@@ -289,14 +289,78 @@ class dperf:
 
 
 
+        # Unit mapping for known dperf metrics
+        METRIC_UNITS = {
+            'duration':  's',
+            # ACK (retransmit / duplicate event counts)
+            'ackDup':    'count',
+            'ackRt':     'count',
+            # ARP
+            'arpRx':     'packet',
+            'arpTx':     'packet',
+            # Bad / Drop / Error
+            'badRx':     'packet',
+            'dropTx':    'packet',
+            'ierrors':   'count',
+            'imissed':   'packet',
+            'oerrors':   'count',
+            # Bits (total transferred)
+            'bitsRx':    'bits',
+            'bitsTx':    'bits',
+            # FIN
+            'finRt':     'count',
+            'finRx':     'packet',
+            'finTx':     'packet',
+            # HTTP
+            'http2XX':   'count',
+            'httpErr':   'count',
+            'httpGet':   'count',
+            'httpPost':  'count',
+            # ICMP
+            'icmpRx':    'packet',
+            'icmpTx':    'packet',
+            # Other packets
+            'otherRx':   'packet',
+            # Packets
+            'pktRx':     'packet',
+            'pktTx':     'packet',
+            # PUSH
+            'pushRt':    'count',
+            # RST
+            'rstRx':     'packet',
+            'rstTx':     'packet',
+            # Socket
+            'skClose':   'count',
+            'skCon':     'count',
+            'skErr':     'count',
+            'skOpen':    'count',
+            # SYN
+            'synRt':     'count',
+            'synRx':     'packet',
+            'synTx':     'packet',
+            # TCP
+            'tcpDrop':   'packet',
+            'tcpRx':     'packet',
+            'tcpTx':     'packet',
+            # TOS
+            'tosRx':     'packet',
+            # UDP
+            'udpDrop':   'packet',
+            'udpRx':     'packet',
+            'udpTx':     'packet',
+        }
+
         with open(self.outputPath, 'w') as f:
             
             # Write CSV
             writer = csv.writer(f)
             
             # Write header row
-            writer.writerow(['Metric', 'Server', 'Client'])
-            writer.writerow(['duration',self.config.test.traffic_generator.duration,self.config.test.traffic_generator.duration])
+            writer.writerow(['Metric', 'Server', 'Client', 'Unit'])
+            writer.writerow(['duration',
+                             self.config.test.traffic_generator.duration,
+                             self.config.test.traffic_generator.duration,
+                             's'])
             
             # Get all possible keys
             all_keys = set()
@@ -309,7 +373,8 @@ class dperf:
             for key in sorted(all_keys):
                 server_value = server_data.get(key, 'N/A') if server_data else 'N/A'
                 client_value = client_data.get(key, 'N/A') if client_data else 'N/A'
-                writer.writerow([key, server_value, client_value])
+                unit = METRIC_UNITS.get(key, '')
+                writer.writerow([key, server_value, client_value, unit])
             
         # Write monitoring data to CSV
         monitor_output_dir = os.path.dirname(self.outputPath)
