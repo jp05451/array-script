@@ -191,6 +191,8 @@ class APVSetup:
         self.ssh_apv.execute_command(f'{self.apv_enable_password}',real_time=True)
         
         self.ssh_apv.execute_command('config terminal',real_time=True)
+        self.ssh_apv.execute_command('show statistics slb all',real_time=True)
+        self.ssh_apv.execute_command('c',real_time=True)
         for i in range(len(self.pairs)):
             protocol = self.pairs[i].protocol.lower()
             if protocol == 'udp':
