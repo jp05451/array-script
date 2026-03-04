@@ -84,31 +84,33 @@ class dperf:
         if self.redis_handler:
             self.redis_handler.close()
     
+    @staticmethod
+    def _parse_time_to_seconds(s):
+        """Parse a time string like '40s', '1m', '2h' into seconds (float)"""
+        if s is None:
+            return 0
+        s = str(s).strip()
+        if s.endswith('ms'):
+            return float(s[:-2]) / 1000
+        elif s.endswith('us'):
+            return float(s[:-2]) / 1_000_000
+        elif s.endswith('s'):
+            return float(s[:-1])
+        elif s.endswith('m'):
+            return float(s[:-1]) * 60
+        elif s.endswith('h'):
+            return float(s[:-1]) * 3600
+        else:
+            try:
+                return float(s)
+            except Exception:
+                return 0
+
     def _calc_duration(self, base_duration, buffer_time):
         # base_duration, buffer_time: strings like '40s', '1m', '2h'
         # Always converted to seconds for calculation, returns unit in 1s
-        def parse_time_to_seconds(s):
-            if s is None:
-                return 0
-            s = str(s).strip()
-            if s.endswith('ms'):
-                return float(s[:-2]) / 1000
-            elif s.endswith('us'):
-                return float(s[:-2]) / 1_000_000
-            elif s.endswith('s'):
-                return float(s[:-1])
-            elif s.endswith('m'):
-                return float(s[:-1]) * 60
-            elif s.endswith('h'):
-                return float(s[:-1]) * 3600
-            else:
-                try:
-                    return float(s)
-                except Exception:
-                    return 0
-
-        base_seconds = parse_time_to_seconds(base_duration)
-        buffer_seconds = parse_time_to_seconds(buffer_time)
+        base_seconds = self._parse_time_to_seconds(base_duration)
+        buffer_seconds = self._parse_time_to_seconds(buffer_time)
         result_seconds = max(base_seconds + buffer_seconds, 1)
         return f"{int(result_seconds)}s"
 
@@ -350,6 +352,23 @@ class dperf:
             'udpTx':     'packet',
         }
 
+        # Calculate total test time (duration + server_buffer_time + client_buffer_time)
+        tg = self.config.test.traffic_generator
+        total_seconds = (
+            self._parse_time_to_seconds(tg.duration) +
+            self._parse_time_to_seconds(getattr(tg, 'server_buffer_time', '0s')) +
+            self._parse_time_to_seconds(getattr(tg, 'client_buffer_time', '0s'))
+        )
+
+        # Calculate throughput (Mbps) from bitsRx / total_seconds
+        server_throughput = 'N/A'
+        client_throughput = 'N/A'
+        if total_seconds > 0:
+            if server_data and server_data.get('bitsRx') is not None:
+                server_throughput = round(server_data['bitsRx'] / total_seconds / 1e6, 4)
+            if client_data and client_data.get('bitsRx') is not None:
+                client_throughput = round(client_data['bitsRx'] / total_seconds / 1e6, 4)
+
         with open(self.outputPath, 'w') as f:
             
             # Write CSV
@@ -375,6 +394,9 @@ class dperf:
                 client_value = client_data.get(key, 'N/A') if client_data else 'N/A'
                 unit = METRIC_UNITS.get(key, '')
                 writer.writerow([key, server_value, client_value, unit])
+
+            # Write computed throughput row
+            writer.writerow(['throughput', server_throughput, client_throughput, 'Mbps'])
             
         # Write monitoring data to CSV
         monitor_output_dir = os.path.dirname(self.outputPath)
