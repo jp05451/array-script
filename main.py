@@ -5,6 +5,7 @@ from dperfSetup import dperf
 from config import Config
 from APVSetup import APVSetup
 from trafficGenerator import TrafficGenerator
+from time import sleep
 
 def parse_arguments():
     """Parse command line arguments"""
@@ -158,6 +159,7 @@ def main():
         
         apv.clearEnv()
         apv.disconnect()
+        sleep(5)
 
 
 if __name__ == "__main__":

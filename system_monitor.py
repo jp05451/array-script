@@ -8,6 +8,8 @@ from datetime import datetime
 from threading import Thread
 
 
+# TODO: CPU Utilization 6 %
+
 class SystemMonitor:
     """System monitor class for monitoring CPU and RAM usage of remote hosts
 
