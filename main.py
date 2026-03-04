@@ -57,7 +57,7 @@ def parse_arguments():
     parser.add_argument(
         '-o','--output',
         type=str,
-        default='results/results.csv',
+        default='results',
         help='Path to the results file (default results/results.csv)'
     )
     
@@ -155,6 +155,7 @@ def main():
         tg.disconnect()
 
         apv.connect()
+        
         apv.clearEnv()
         apv.disconnect()
 
