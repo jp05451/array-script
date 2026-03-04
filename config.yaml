@@ -25,7 +25,7 @@ test:
     hugepage_size: 1G   # Hugepage size (1G or 2M)
 
     # Total test duration and buffer time
-    duration: 1m
+    duration: 1s
     client_buffer_time: 33s
     server_buffer_time: 3s
 
