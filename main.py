@@ -157,7 +157,7 @@ def main():
             apv.connect()
             apv.clearEnv()
             apv.disconnect()
-            sleep(5)
+            sleep(60)
 
 
 if __name__ == "__main__":
