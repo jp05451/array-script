@@ -634,8 +634,16 @@ class dperf:
         )
         self.executor.execute_command("ls -l config/")
 
-    def setupEnv(self):
+    def setupEnv(self, dry_run=False):
         """Set up dperf environment"""
+        if dry_run:
+            tg = self.config.test.traffic_generator
+            print(f"[Pair {self.pair_index}] [DRY RUN] Would set hugepages: {tg.hugepage_frames}x{tg.hugepage_size}")
+            print(f"[Pair {self.pair_index}] [DRY RUN] Would bind NICs (vfio-pci): {self.pair.client.client_nic_pci}, {self.pair.server.server_nic_pci}")
+            print(f"[Pair {self.pair_index}] [DRY RUN] Server config (config/server_pair{self.pair_index}.conf):\n{self.generateServerConfig()}")
+            print(f"[Pair {self.pair_index}] [DRY RUN] Client config (config/client_pair{self.pair_index}.conf):\n{self.generateClientConfig()}")
+            return
+
         try:
             # Set up hugepages
             self.setHugePages()
@@ -643,12 +651,16 @@ class dperf:
             self.bindNICs()
             # Create configuration files
             self.setupConfig()
-            
+
         except Exception as e:
             print(f"Failed to set up dperf environment: {e}")
             raise
-        
-    def clearEnv(self):
+
+    def clearEnv(self, dry_run=False):
+        if dry_run:
+            print(f"[Pair {self.pair_index}] [DRY RUN] Would clear hugepages and unbind NICs: {self.pair.client.client_nic_pci}, {self.pair.server.server_nic_pci}")
+            return
+
         try:
             # clear hugepages setting
             self.clearHugePages()
