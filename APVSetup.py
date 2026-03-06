@@ -166,10 +166,13 @@ class APVSetup:
         
     
     def setupEnv(self, dry_run=False):
-        self.ssh_apv.execute_command('enable',real_time=True)
-        self.ssh_apv.execute_command(f'{self.apv_enable_password}',real_time=True)
-        
-        self.ssh_apv.execute_command('config terminal',real_time=True)
+        if dry_run:
+            print(f"[APVSetup] [DRY RUN] APV: {self.apv_management_ip}:{self.apv_management_port} (user: {self.apv_username})")
+        else:
+            self.ssh_apv.execute_command('enable',real_time=True)
+            self.ssh_apv.execute_command(f'{self.apv_enable_password}',real_time=True)
+            self.ssh_apv.execute_command('config terminal',real_time=True)
+
         for i in range(len(self.pairs)):
             protocol = self.pairs[i].protocol.lower()
             if protocol == 'udp':
@@ -183,16 +186,18 @@ class APVSetup:
                 self.setupHTTPLoadBalancer(pair_index=i,dry_run=dry_run)
             else:
                 raise ValueError(f"Unsupported protocol: {protocol}")
+
         if not dry_run:
             self.ssh_apv.execute_command('write memory',real_time=True)
-            
+
     def clearEnv(self, dry_run=False):
+        if dry_run:
+            print(f"[APVSetup] [DRY RUN] Would clear APV config on {self.apv_management_ip}")
+            return
+
         self.ssh_apv.execute_command('enable',real_time=True)
         self.ssh_apv.execute_command(f'{self.apv_enable_password}',real_time=True)
-        
         self.ssh_apv.execute_command('config terminal',real_time=True)
-        # self.ssh_apv.execute_command('show statistics slb all',real_time=True)
-        # self.ssh_apv.execute_command('c',real_time=True)
         for i in range(len(self.pairs)):
             protocol = self.pairs[i].protocol.lower()
             if protocol == 'udp':
@@ -206,8 +211,7 @@ class APVSetup:
                 self.setupHTTPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
             else:
                 raise ValueError(f"Unsupported protocol: {protocol}")
-        if not dry_run:
-            self.ssh_apv.execute_command('write memory',real_time=True)
+        self.ssh_apv.execute_command('write memory',real_time=True)
     
     def connect(self):
         self.ssh_apv.connect(persistent_session=True,)
