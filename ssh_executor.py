@@ -279,6 +279,11 @@ class CommandExecutor:
             raise Exception("Session not started, please call start_session() first")
 
         import time
+        import re
+
+        # Matches common shell/CLI prompts at end of line:
+        # e.g. "$ ", "# ", "> ", "APV# ", "APV(config)# "
+        _PROMPT_RE = re.compile(r'[$#>]\s*$')
 
         # Send command
         self._shell.send(command + "\n")
@@ -292,9 +297,9 @@ class CommandExecutor:
                 chunk = self._shell.recv(4096).decode('utf-8')
                 output += chunk
 
-                # If prompt is seen, command execution is complete
-                # Simple newline detection used here, adjust as needed
-                if chunk.endswith('$ ') or chunk.endswith('# ') or chunk.endswith('> '):
+                # Strip ANSI escape codes before prompt detection
+                clean = OutputHandler.clean_ansi(output)
+                if _PROMPT_RE.search(clean.rstrip('\r\n').rstrip()):
                     break
 
             # Check timeout
