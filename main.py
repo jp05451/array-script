@@ -1,7 +1,4 @@
 import argparse
-import paramiko
-from ssh_executor import SSHExecutor
-from dperfSetup import dperf
 from config import Config
 from APVSetup import APVSetup
 from trafficGenerator import TrafficGenerator
@@ -115,10 +112,12 @@ def main():
     print(f"Dry run mode: {dryRun}")
 
     apv=APVSetup(config,log_path=args.log)
-    apv.connect()
-    apv.clearEnv()
+    if not dryRun:
+        apv.connect()
+        apv.clearEnv()
     apv.setupEnv(dry_run=dryRun)
-    apv.disconnect()
+    if not dryRun:
+        apv.disconnect()
 
     # Create TrafficGenerator
     tg = TrafficGenerator(
@@ -128,12 +127,12 @@ def main():
         output_path=args.output
     )
 
-    # Connect
-    tg.connect()
+    if not dryRun:
+        tg.connect()
 
     try:
         # Setup environment
-        tg.setup_env()
+        tg.setup_env(dry_run=dryRun)
 
         # Run test
         results = tg.run_test(parallel=True, enable_monitor=True, dry_run=dryRun)
@@ -151,15 +150,14 @@ def main():
                 print(f"  Client: {pair_result.get('client')}")
 
     finally:
-        # Disconnect
-        tg.clearEnv()
-        tg.disconnect()
+        if not dryRun:
+            tg.clearEnv()
+            tg.disconnect()
 
-        apv.connect()
-        
-        apv.clearEnv()
-        apv.disconnect()
-        sleep(5)
+            apv.connect()
+            apv.clearEnv()
+            apv.disconnect()
+            sleep(5)
 
 
 if __name__ == "__main__":
