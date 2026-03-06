@@ -199,12 +199,10 @@ class dperf:
 
         return "\n".join(config_lines)
 
-    def runPairTest(self, monitor=None, dry_run=False):
+    def runPairTest(self, dry_run=False):
         """Execute pair test
 
         Args:
-            monitor: Optional SystemMonitor instance, if provided, monitoring will not be started/stopped here
-                    (Monitoring lifecycle managed externally)
             dry_run: If True, skip actual dperf execution and return dummy results
         """
         if dry_run:
@@ -236,21 +234,15 @@ class dperf:
         print(f"[Pair {self.pair_index}] Server output: {self.serverOutput}")
         print(f"[Pair {self.pair_index}] Client output: {self.clientOutput}")
 
-        # Get monitoring data (if monitor is provided)
-        monitor_data = monitor.get_data() if monitor else []
-        self.outputResults(monitor_data=monitor_data)
+        self.outputResults()
 
         return {
             'server': self.serverOutput,
             'client': self.clientOutput
         }
         
-    def outputResults(self, monitor_data=None):
-        """Output test results to the specified file path
-
-        Args:
-            monitor_data: Monitoring data list provided by external SystemMonitor
-        """
+    def outputResults(self):
+        """Output test results to the specified file path."""
         if self.outputPath is None or self.outputPath == "":
             self.outputPath = f"./results/dperf_pair{self.pair_index}_results.csv"
 
@@ -262,9 +254,6 @@ class dperf:
         # Try to read data from Redis
         server_data = self.serverOutput
         client_data = self.clientOutput
-        if monitor_data is None:
-            monitor_data = []
-
 
         if self.enable_redis and self.redis_handler and self.redis_handler.is_connected():
             try:
@@ -273,18 +262,12 @@ class dperf:
                 if redis_server and 'metrics' in redis_server:
                     server_data = redis_server['metrics']
                     print(f"[Pair {self.pair_index}] Loaded Server output data from Redis")
-                
+
                 # Get client data from Redis
                 redis_client = self.get_redis_test_output('client')
                 if redis_client and 'metrics' in redis_client:
                     client_data = redis_client['metrics']
                     print(f"[Pair {self.pair_index}] Loaded Client output data from Redis")
-                
-                # Get monitor data from Redis
-                redis_monitor = self.get_redis_monitor_data()
-                if redis_monitor:
-                    monitor_data = redis_monitor
-                    print(f"[Pair {self.pair_index}] Loaded Monitor data from Redis")
             except Exception as e:
                 print(f"[Pair {self.pair_index}] Failed to read data from Redis: {e}, using local data")
             
@@ -370,24 +353,24 @@ class dperf:
                 client_throughput = round(client_data['bitsRx'] / total_seconds / 1e6, 4)
 
         with open(self.outputPath, 'w') as f:
-            
+
             # Write CSV
             writer = csv.writer(f)
-            
+
             # Write header row
             writer.writerow(['Metric', 'Server', 'Client', 'Unit'])
             writer.writerow(['duration',
                              self.config.test.traffic_generator.duration,
                              self.config.test.traffic_generator.duration,
                              's'])
-            
+
             # Get all possible keys
             all_keys = set()
             if server_data:
                 all_keys.update(server_data.keys())
             if client_data:
                 all_keys.update(client_data.keys())
-            
+
             # Write data for each metric
             for key in sorted(all_keys):
                 server_value = server_data.get(key, 'N/A') if server_data else 'N/A'
@@ -397,37 +380,9 @@ class dperf:
 
             # Write computed throughput row
             writer.writerow(['throughput', server_throughput, client_throughput, 'Mbps'])
-            
-        # Write monitoring data to CSV
-        monitor_output_dir = os.path.dirname(self.outputPath)
-        if not os.path.exists(monitor_output_dir):
-            os.makedirs(monitor_output_dir, exist_ok=True)
-
-        monitor_csv_path = f"{monitor_output_dir}/dperf_pair{self.pair_index}_monitor.csv"
-        with open(monitor_csv_path, 'w', newline='') as f:
-            writer = csv.writer(f)
-
-            # Write header row
-            writer.writerow(['Timestamp', 'CPU_Usage_Percent', 'RAM_Used_MB', 'RAM_Total_MB', 'RAM_Usage_Percent'])
-
-            # monitor_data is a list, each element is a dict
-            if isinstance(monitor_data, list):
-                for data_point in monitor_data:
-                    writer.writerow([
-                        data_point.get('timestamp', ''),
-                        data_point.get('cpu_usage', ''),
-                        data_point.get('ram_used', ''),
-                        data_point.get('ram_total', ''),
-                        data_point.get('ram_usage', '')
-                    ])
-            elif isinstance(monitor_data, dict):
-                # For dict (backward compatibility)
-                for key, value in monitor_data.items():
-                    writer.writerow([key, value])
 
 
         print(f"[Pair {self.pair_index}] Test results have been exported to {self.outputPath}")
-            
 
     def serverStart(self):
         def generateServerShell():
