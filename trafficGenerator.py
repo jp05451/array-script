@@ -2,7 +2,6 @@ from config import Config
 from dperfSetup import dperf
 from system_monitor import SystemMonitor
 from threading import Thread
-from concurrent.futures import ThreadPoolExecutor
 import time
 
 
@@ -41,15 +40,13 @@ class TrafficGenerator:
 
         # Establish shared SystemMonitor (only one needed for the entire machine)
         self.monitor = SystemMonitor(
-            management_ip=config.test.traffic_generator.management_ip,
-            management_port=config.test.traffic_generator.management_port,
-            username=config.test.traffic_generator.username,
-            password=config.test.traffic_generator.password,
+            config=config,
+            output_path=output_path,
             log_path=log_path,
             redis_host=redis_host,
             redis_port=redis_port,
             redis_db=redis_db,
-            enable_redis=enable_redis
+            enable_redis=enable_redis,
         )
 
         # Establish multiple dperf pairs
@@ -103,6 +100,7 @@ class TrafficGenerator:
 
         Args:
             pair_indices: List of pair indices to setup, setup all if None
+            dry_run: If True, show configuration without executing
         """
         if pair_indices is None:
             pair_indices = list(range(self.pair_count))
@@ -112,18 +110,19 @@ class TrafficGenerator:
         for i in pair_indices:
             if i < len(self.pairs):
                 print(f"[TrafficGenerator] Setting up Pair {i} environment...")
-                self.pairs[i].setupEnv()
+                self.pairs[i].setupEnv(dry_run=dry_run)
                 print(f"[TrafficGenerator] Pair {i} environment setup completed")
             else:
                 print(f"[TrafficGenerator] Warning: Pair {i} does not exist")
 
         print("[TrafficGenerator] Environment setup completed")
-        
+
     def clearEnv(self, pair_indices: list|None = None, dry_run: bool = False):
         """Clear environment
 
         Args:
             pair_indices: List of pair indices to clear, clear all if None
+            dry_run: If True, show what would be cleared without executing
         """
         if pair_indices is None:
             pair_indices = list(range(self.pair_count))
@@ -133,7 +132,7 @@ class TrafficGenerator:
         for i in pair_indices:
             if i < len(self.pairs):
                 print(f"[TrafficGenerator] Clearing Pair {i} environment...")
-                self.pairs[i].clearEnv()
+                self.pairs[i].clearEnv(dry_run=dry_run)
                 print(f"[TrafficGenerator] Pair {i} environment cleared")
             else:
                 print(f"[TrafficGenerator] Warning: Pair {i} does not exist")
@@ -141,15 +140,13 @@ class TrafficGenerator:
         print("[TrafficGenerator] Environment clearance completed")
 
     def run_test(self, pair_indices: list|None = None, enable_monitor: bool = True,
-                 parallel: bool = False, monitor_output_file: str|None = None,
-                 dry_run: bool = False):
+                 parallel: bool = False, dry_run: bool = False):
         """Execute test
 
         Args:
             pair_indices: List of pair indices to test, test all if None
             enable_monitor: Whether to enable monitoring
             parallel: Whether to execute multiple pair tests in parallel
-            monitor_output_file: Monitoring data output file path
             dry_run: If True, skip actual dperf traffic generation
 
         Returns:
@@ -164,7 +161,7 @@ class TrafficGenerator:
 
         # Start monitoring (skip in dry run mode)
         if enable_monitor and not dry_run:
-            self.monitor.start(output_file=monitor_output_file)
+            self.monitor.start()
             time.sleep(2)  # Ensure monitoring is started
 
         try:
@@ -199,7 +196,7 @@ class TrafficGenerator:
         for i in pair_indices:
             if i < len(self.pairs):
                 print(f"[TrafficGenerator] Executing Pair {i} test...")
-                result = self.pairs[i].runPairTest(monitor=self.monitor, dry_run=dry_run)
+                result = self.pairs[i].runPairTest(dry_run=dry_run)
                 results[f'pair_{i}'] = result
             else:
                 print(f"[TrafficGenerator] Warning: Pair {i} does not exist")
@@ -220,7 +217,7 @@ class TrafficGenerator:
 
         def run_pair(pair_index):
             if pair_index < len(self.pairs):
-                result = self.pairs[pair_index].runPairTest(monitor=self.monitor, dry_run=dry_run)
+                result = self.pairs[pair_index].runPairTest(dry_run=dry_run)
                 results[f'pair_{pair_index}'] = result
 
         # Establish and start all test threads
