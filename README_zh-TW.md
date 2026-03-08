@@ -33,6 +33,7 @@
   - [多組 Pair 配置](#多組-pair-配置)
 - [系統需求](#系統需求)
 - [注意事項](#注意事項)
+- [DPerf 指標參考](#dperf-指標參考)
 - [專案函式掃描結果](#專案函式掃描結果)
 
 ## 核心模組說明
@@ -1180,6 +1181,61 @@ pairs:
 3. **持久 Session**：使用持久 session 可保持狀態，適合需要多個連續命令的場景
 4. **日誌管理**：每個測試對會產生獨立的日誌檔案，便於問題追蹤
 5. **資源清理**：建議使用 with 語句或確保呼叫 close() 方法以正確釋放資源
+
+
+## DPerf 指標參考
+
+以下指標從 dperf 輸出的 `Total Numbers:` 區塊擷取。每份結果 CSV 包含 `Metric`、`Server`、`Client` 三欄。
+
+| 指標 | 說明 | 單位 |
+|------|------|------|
+| `duration` | 設定的基準測試時長（來自 `traffic_generator.duration`）。非 dperf 原生輸出欄位，由 `outputResults()` 作為參考列插入。 | 秒 |
+| `throughput` | 完整測試期間的平均接收吞吐量（`bitsRx` ÷ 經過秒數）。由 `outputResults()` 計算，非 dperf 原生欄位。 | Mbps |
+| `ackDup` | 每秒重複 TCP ACK 事件數。當接收端偵測到封包順序錯誤或遺失時產生。 | count/s |
+| `ackRt` | 每秒 TCP ACK 封包重傳數。 | count/s |
+| `arpRx` | 每秒接收到的 ARP 封包數。 | packet/s |
+| `arpTx` | 每秒送出的 ARP 封包數。 | packet/s |
+| `badRx` | 每秒接收到的格式錯誤或無效封包數（如 IPv4 checksum 錯誤）。 | packet/s |
+| `bitsRx` | 每秒接收的總位元數（含 L2–L4 表頭）。 | bits/s |
+| `bitsTx` | 每秒傳送的總位元數（含 L2–L4 表頭）。 | bits/s |
+| `dropTx` | 每秒因 TX 佇列滿溢而丟棄的傳送封包數。 | packet/s |
+| `finRt` | 每秒 TCP FIN 封包重傳數。 | count/s |
+| `finRx` | 每秒接收到的 TCP FIN 封包數。 | packet/s |
+| `finTx` | 每秒送出的 TCP FIN 封包數。 | packet/s |
+| `http2XX` | 每秒 HTTP 2XX（成功）回應數。 | count/s |
+| `httpErr` | 每秒 HTTP 錯誤回應數（格式錯誤或非預期狀態碼）。 | count/s |
+| `httpGet` | 每秒 HTTP GET 請求數。 | count/s |
+| `httpPost` | 每秒 HTTP POST 請求數。 | count/s |
+| `icmpRx` | 每秒接收到的 ICMP（含 ICMPv6）封包數。 | packet/s |
+| `icmpTx` | 每秒送出的 ICMP（含 ICMPv6）封包數。 | packet/s |
+| `ierrors` | 測試開始至今，NIC 接收端硬體錯誤累計總數（非每秒速率）。 | count |
+| `imissed` | 測試開始至今，因 RX 緩衝區不足而被 NIC 硬體丟棄的封包累計總數（非每秒速率）。 | packet |
+| `oerrors` | 測試開始至今，NIC 傳送端硬體錯誤累計總數（非每秒速率）。 | count |
+| `otherRx` | 每秒接收到的未知／不支援協定封包數。 | packet/s |
+| `pktRx` | 每秒接收的總封包數（所有協定）。 | packet/s |
+| `pktTx` | 每秒傳送的總封包數（所有協定）。 | packet/s |
+| `pushRt` | 每秒 TCP 資料（PUSH）封包重傳數。 | count/s |
+| `rstRx` | 每秒接收到的 TCP RST 封包數。 | packet/s |
+| `rstTx` | 每秒送出的 TCP RST 封包數。 | packet/s |
+| `skClose` | 每秒關閉的 socket 數。 | count/s |
+| `skCon` | 測量當下正在開啟（並行）的 socket 數量。 | count |
+| `skErr` | 每秒進入錯誤狀態的 socket 數。 | count/s |
+| `skOpen` | 每秒新建的 socket 數（等同於每秒連線數 CPS）。 | count/s |
+| `synRt` | 每秒 TCP SYN 封包重傳數。 | count/s |
+| `synRx` | 每秒接收到的 TCP SYN 封包數。 | packet/s |
+| `synTx` | 每秒送出的 TCP SYN 封包數。 | packet/s |
+| `tcpDrop` | 每秒丟棄的 TCP 封包數（狀態錯誤、找不到對應 socket 等）。 | packet/s |
+| `tcpRx` | 每秒接收到的 TCP 分段數。 | packet/s |
+| `tcpTx` | 每秒送出的 TCP 分段數。 | packet/s |
+| `tosRx` | 每秒接收到 TOS 欄位與設定值相符的 IP 封包數。 | packet/s |
+| `udpDrop` | 每秒丟棄的 UDP 封包數。 | packet/s |
+| `udpRx` | 每秒接收到的 UDP 資料報數。 | packet/s |
+| `udpTx` | 每秒送出的 UDP 資料報數。 | packet/s |
+
+> **注意**：`ierrors`、`oerrors`、`imissed` 為 DPDK NIC 驅動回報的**累計總數**，而非每秒速率。
+> `duration` 與 `throughput` 由本專案 `dperfSetup.py:outputResults()` 計算插入，並非 dperf 原生統計欄位。
+
+---
 
 ## 授權
 

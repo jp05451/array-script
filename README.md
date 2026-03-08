@@ -34,6 +34,7 @@ This project provides automated scripts to run DPerf network performance tests. 
   - [Multiple Pair Configuration](#multiple-pair-configuration)
 - [System Requirements](#system-requirements)
 - [Notes](#notes)
+- [DPerf Metrics Reference](#dperf-metrics-reference)
 - [Project Function Scan Results](#project-function-scan-results)
 
 ## Core Module Overview
@@ -1177,6 +1178,60 @@ pairs:
 3. **Persistent sessions**: Persistent sessions keep state across commands and are suitable for multi-step workflows
 4. **Log management**: Each test pair produces its own log file for troubleshooting
 5. **Resource cleanup**: Use context managers or ensure `close()` is called to release resources
+
+## DPerf Metrics Reference
+
+The following metrics are collected from the `Total Numbers:` block in dperf output. Each results CSV contains a `Metric`, `Server`, and `Client` column.
+
+| Metric | Description | Unit |
+|--------|-------------|------|
+| `duration` | Configured base test duration (from `traffic_generator.duration`). Not a native dperf output field; inserted by `outputResults()` as a reference row. | s |
+| `throughput` | Average receive throughput over the full test window (`bitsRx` / elapsed seconds). Calculated by `outputResults()`, not a native dperf field. | Mbps |
+| `ackDup` | Number of duplicate TCP ACK events per second. Occurs when the receiver detects an out-of-order or missing segment. | count/s |
+| `ackRt` | Number of TCP ACK packets retransmitted per second. | count/s |
+| `arpRx` | Number of ARP packets received per second. | packet/s |
+| `arpTx` | Number of ARP packets sent per second. | packet/s |
+| `badRx` | Number of malformed or invalid packets received per second (e.g. bad IPv4 checksum). | packet/s |
+| `bitsRx` | Total bits received per second (including L2–L4 headers). | bits/s |
+| `bitsTx` | Total bits sent per second (including L2–L4 headers). | bits/s |
+| `dropTx` | Number of transmit packets dropped per second due to TX queue overflow. | packet/s |
+| `finRt` | Number of TCP FIN packets retransmitted per second. | count/s |
+| `finRx` | Number of TCP FIN packets received per second. | packet/s |
+| `finTx` | Number of TCP FIN packets sent per second. | packet/s |
+| `http2XX` | Number of HTTP 2XX (success) responses per second. | count/s |
+| `httpErr` | Number of HTTP error responses per second (malformed or unexpected status codes). | count/s |
+| `httpGet` | Number of HTTP GET requests per second. | count/s |
+| `httpPost` | Number of HTTP POST requests per second. | count/s |
+| `icmpRx` | Number of ICMP (including ICMPv6) packets received per second. | packet/s |
+| `icmpTx` | Number of ICMP (including ICMPv6) packets sent per second. | packet/s |
+| `ierrors` | Cumulative NIC receive-side hardware errors since test start (not a per-second rate). | count |
+| `imissed` | Cumulative packets dropped by NIC hardware due to insufficient RX buffer since test start (not a per-second rate). | packet |
+| `oerrors` | Cumulative NIC transmit-side hardware errors since test start (not a per-second rate). | count |
+| `otherRx` | Number of packets of unrecognised protocol type received per second. | packet/s |
+| `pktRx` | Total packets received per second (all protocols). | packet/s |
+| `pktTx` | Total packets sent per second (all protocols). | packet/s |
+| `pushRt` | Number of TCP data (PUSH) packets retransmitted per second. | count/s |
+| `rstRx` | Number of TCP RST packets received per second. | packet/s |
+| `rstTx` | Number of TCP RST packets sent per second. | packet/s |
+| `skClose` | Number of sockets closed per second. | count/s |
+| `skCon` | Number of currently open (concurrent) sockets at the time of measurement. | count |
+| `skErr` | Number of sockets entering an error state per second. | count/s |
+| `skOpen` | Number of new sockets opened per second (equivalent to connections per second, CPS). | count/s |
+| `synRt` | Number of TCP SYN packets retransmitted per second. | count/s |
+| `synRx` | Number of TCP SYN packets received per second. | packet/s |
+| `synTx` | Number of TCP SYN packets sent per second. | packet/s |
+| `tcpDrop` | Number of TCP packets dropped per second (bad state, no matching socket, etc.). | packet/s |
+| `tcpRx` | Number of TCP segments received per second. | packet/s |
+| `tcpTx` | Number of TCP segments sent per second. | packet/s |
+| `tosRx` | Number of IP packets received per second whose TOS field matches the configured value. | packet/s |
+| `udpDrop` | Number of UDP packets dropped per second. | packet/s |
+| `udpRx` | Number of UDP datagrams received per second. | packet/s |
+| `udpTx` | Number of UDP datagrams sent per second. | packet/s |
+
+> **Note**: `ierrors`, `oerrors`, and `imissed` are cumulative totals reported by the DPDK NIC driver, not per-second rates.
+> `duration` and `throughput` are added by this project's `dperfSetup.py:outputResults()` and are not native dperf statistics fields.
+
+---
 
 ## License
 
