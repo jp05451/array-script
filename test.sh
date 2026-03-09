@@ -1,10 +1,19 @@
 uv run main.py --sessions 2k --duration 1h --output results/2k --log logs/2k
+sleep 60
 uv run main.py --sessions 4k --duration 1h --output results/4k --log logs/4k
+sleep 60
 uv run main.py --sessions 8k --duration 1h --output results/8k --log logs/8k
+sleep 60
 uv run main.py --sessions 16k --duration 1h --output results/16k --log logs/16k
+sleep 60
 uv run main.py --sessions 32k --duration 1h --output results/32k --log logs/32k
+sleep 60
 uv run main.py --sessions 64k --duration 1h --output results/64k --log logs/64k
+sleep 60
 uv run main.py --sessions 128k --duration 1h --output results/128k --log logs/128k
+sleep 60
 uv run main.py --sessions 256k --duration 1h --output results/256k --log logs/256k
+sleep 60
 uv run main.py --sessions 512k --duration 1h --output results/512k --log logs/512k
+sleep 60
 uv run main.py --sessions 1m --duration 1h --output results/1m --log logs/1m

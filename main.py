@@ -157,6 +157,7 @@ def main():
             apv.connect()
             apv.clearEnv()
             apv.disconnect()
+            print("buffering logs for 60 seconds before exiting...")
             sleep(60)
 
 
