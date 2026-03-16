@@ -1,6 +1,19 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. 
+
+## output
+All outputs must use traditional Chinese
+
+## Running Tests
+
+```bash
+# Run unit tests (uses unittest + mocks, no SSH required)
+python test_dperf.py
+
+# Run a specific test class
+python -m unittest test_dperf.TestDperfParseOutput -v
+```
 
 ## Running the Test
 
