@@ -397,6 +397,10 @@ class dperf:
                              self.pair.server.server_nic_pci,
                              self.pair.client.client_nic_pci,
                              ''])
+            writer.writerow(['apv_port',
+                             self.pair.apv_server_port,
+                             self.pair.apv_client_port,
+                             ''])
             writer.writerow(['session',
                              self.pair.client.cc,
                              self.pair.client.cc,
