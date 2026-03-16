@@ -55,6 +55,8 @@ class TrafficGeneratorPair:
     server: ServerConfig = field(default_factory=ServerConfig)
     payload_size: int = 0
     protocol: str = "tcp"
+    apv_client_port: str = ""   # runtime: APV port name for client_gw
+    apv_server_port: str = ""   # runtime: APV port name for server_gw
 
 
 @dataclass
