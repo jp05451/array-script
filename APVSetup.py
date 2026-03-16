@@ -1,9 +1,14 @@
 import ssh_executor
 from config import Config
+from output_handler import OutputHandler
+import csv
+import os
+import re
 
 
 class APVSetup:
     def __init__(self, config: Config,log_path: str = 'logs'):
+        self.logPath = log_path
         self.apv_management_ip = config.test.apv_management_ip
         self.apv_management_port: int = config.test.apv_management_port
         self.apv_username: str = config.test.apv_username
@@ -215,9 +220,195 @@ class APVSetup:
     
     def connect(self):
         self.ssh_apv.connect(persistent_session=True,)
-        
+
     def disconnect(self):
         self.ssh_apv.close()
+
+    # -------------------------------------------------------------------------
+    # SLB Statistics Collection
+    # -------------------------------------------------------------------------
+
+    def collectSLBStats(self) -> str:
+        """進入 enable 模式後執行 show statistics slb all，回傳完整原始輸出字串。
+
+        APV 會對輸出分頁（--More--），持續送 'c' 直到取得完整內容。
+        執行完畢後送 exit 退回 user mode，確保後續 clearEnv 的 enable 流程不受干擾。
+        原始輸出會同時寫入 <logPath>/apv_slb_raw.log 供除錯用。
+        """
+        shell = self.ssh_apv._executor
+        assert shell is not None, "APV SSH session not established; call connect() first"
+        shell.execute_in_session('enable', timeout=15)
+        shell.execute_in_session(self.apv_enable_password, timeout=15)
+
+        # 收集完整輸出：APV 分頁時持續送 Enter('\n') 直到看到 prompt（AN#）
+        full_output = shell.execute_in_session('show statistics slb all', timeout=30)
+        while '--More--' in full_output and not re.search(r'AN[^\n]*#\s*$', full_output):
+            page = shell.execute_in_session('\n', timeout=30)
+            full_output += '\n' + page
+            if re.search(r'AN[^\n]*#\s*$', page):
+                break
+
+        shell.execute_in_session('disable', timeout=10)   # 退回 user mode（不關閉 session）
+
+        # 寫入 debug log（清除退格符與 --More-- 後再存檔）
+        debug_log = os.path.join(self.logPath, 'apv_slb_raw.log')
+        try:
+            clean_log = OutputHandler.clean_ansi(full_output)
+            clean_log = re.sub(r'\x08+', '', clean_log)
+            clean_log = re.sub(r'[ \t]*--More--[ \t]*\n?', '', clean_log)
+            with open(debug_log, 'w') as f:
+                f.write(clean_log)
+        except Exception:
+            pass
+
+        return full_output
+
+    @staticmethod
+    def parseSLBStats(raw: str) -> dict:
+        """解析 show statistics slb all 的原始輸出。
+
+        回傳結構：
+            {
+              'vs': [{'ip': str, 'metrics': {field: value}}, ...],
+              'rs': [{'name': str, 'ip': str, 'port': str, 'status': str,
+                      'metrics': {field: value}}, ...],
+            }
+        """
+        # 移除 ANSI 控制碼、\r、退格符(\x08) 及 --More-- 汙染
+        clean = OutputHandler.clean_ansi(raw)
+        clean = re.sub(r'\x08+', '', clean)
+        clean = re.sub(r'[ \t]*--More--[ \t]*', '', clean)
+
+        result = {'vs': [], 'rs': []}
+
+        # ── 解析 RS 區塊 ──────────────────────────────────────────────────────
+        # 標頭格式：Real service <name> <ip> <port> <state...>
+        rs_header = re.compile(
+            r'^Real service\s+(\S+)\s+([\d.]+)\s+(\d+)\s+(.+)', re.MULTILINE
+        )
+        rs_splits = list(rs_header.finditer(clean))
+        for idx, m in enumerate(rs_splits):
+            block_start = m.end()
+            block_end   = rs_splits[idx + 1].start() if idx + 1 < len(rs_splits) else len(clean)
+            block_text  = clean[block_start:block_end]
+
+            metrics = APVSetup._parse_kv_block(block_text)
+            result['rs'].append({
+                'name':    m.group(1),
+                'ip':      m.group(2),
+                'port':    m.group(3),
+                'status':  m.group(4).strip(),
+                'metrics': metrics,
+            })
+
+        # ── 解析 VS 區塊 ──────────────────────────────────────────────────────
+        # 標頭格式：<protocol> virtual service "<name>" (<ip> <port>) <state>
+        # 範例：tcp virtual service "tcp_slb_vs" (10.10.11.101 6769) UP
+        vs_header = re.compile(
+            r'^\s*\w+\s+virtual service\s+"([^"]+)"\s+\(([\d.]+)\s+(\d+)\)\s+(\S+)',
+            re.MULTILINE
+        )
+        vs_splits = list(vs_header.finditer(clean))
+        for idx, m in enumerate(vs_splits):
+            block_start = m.end()
+            next_vs   = vs_splits[idx + 1].start() if idx + 1 < len(vs_splits) else len(clean)
+            block_end = next_vs
+            block_text = clean[block_start:block_end]
+
+            metrics = APVSetup._parse_kv_block(block_text)
+            result['vs'].append({
+                'name':   m.group(1),
+                'ip':     m.group(2),
+                'port':   m.group(3),
+                'status': m.group(4),
+                'metrics': metrics,
+            })
+
+        return result
+
+    @staticmethod
+    def _parse_kv_block(text: str) -> dict:
+        """從一段文字中提取所有 'Key: value [unit]' 對，回傳 dict。"""
+        metrics = {}
+        for line in text.splitlines():
+            # 匹配 "    Some Key Label:   123" 或 "    Key:  0.000 ms"
+            m = re.match(r'^\s+(.+?):\s+(.+?)\s*$', line)
+            if not m:
+                continue
+            key = m.group(1).strip()
+            val = m.group(2).strip()
+            # 嘗試轉數值（移除單位 bps/pps/ms）
+            num_match = re.match(r'^([\d.]+)\s*(?:bps|pps|ms)?$', val)
+            if num_match:
+                raw_num = num_match.group(1)
+                metrics[key] = float(raw_num) if '.' in raw_num else int(raw_num)
+            else:
+                metrics[key] = val
+        return metrics
+
+    # 指標單位對照表
+    _SLB_METRIC_UNITS = {
+        # 連線數 / 請求數
+        'Max Conn Count':             'count',
+        'Max Connection Count':       'count',
+        'Current Connection Count':   'count',
+        'Current CPS Count':          'cps',
+        'Outstanding Request Count':  'count',
+        'Total Hits':                 'count',
+        'Total Connection Count':     'count',
+        # 流量（位元組）
+        'Total Bytes In':             'bytes',
+        'Total Bytes Out':            'bytes',
+        # 封包數
+        'Total Packets In':           'packet',
+        'Total Packets Out':          'packet',
+        # 頻寬
+        'Average Bandwidth In':       'bps',
+        'Average Bandwidth Out':      'bps',
+        # 封包速率
+        'Average Packets In Rate':    'pps',
+        'Average Packets Out Rate':   'pps',
+        # 延遲
+        'Average Response time':      'ms',
+        'Average client connection RTT': 'ms',
+        # QoS / Policy 命中數
+        'qos clientport hits':        'count',
+        'qos network hits':           'count',
+        'default hits':               'count',
+        'doh hits':                   'count',
+        'static hits':                'count',
+        'backup hits':                'count',
+    }
+
+    def outputSLBStats(self, parsed: dict, output_path: str):
+        """將解析後的 SLB 統計資料寫入 CSV。
+
+        輸出檔案：<output_path>/apv_slb_stats.csv
+        欄位：Type, Identifier, Metric, Value, Unit
+        """
+        os.makedirs(output_path, exist_ok=True)
+        csv_path = os.path.join(output_path, 'apv_slb_stats.csv')
+
+        rows = []
+
+        for vs in parsed.get('vs', []):
+            identifier = f"{vs['name']} ({vs['ip']}:{vs['port']}) [{vs['status']}]"
+            for metric, value in vs['metrics'].items():
+                unit = self._SLB_METRIC_UNITS.get(metric, '')
+                rows.append(['VS', identifier, metric, value, unit])
+
+        for rs in parsed.get('rs', []):
+            identifier = f"{rs['name']} ({rs['ip']}:{rs['port']}) [{rs['status']}]"
+            for metric, value in rs['metrics'].items():
+                unit = self._SLB_METRIC_UNITS.get(metric, '')
+                rows.append(['RS', identifier, metric, value, unit])
+
+        with open(csv_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Type', 'Identifier', 'Metric', 'Value', 'Unit'])
+            writer.writerows(rows)
+
+        print(f"[APVSetup] SLB 統計資料已輸出至 {csv_path}")
         
 def argParser():
     import argparse
