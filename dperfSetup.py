@@ -48,6 +48,8 @@ class dperf:
         self.clientOutput = None
         self.serverPerSecond = []
         self.clientPerSecond = []
+        self.serverDerived = {}
+        self.clientDerived = {}
 
         # Initialize Redis Handler
         self.enable_redis = enable_redis
@@ -338,6 +340,13 @@ class dperf:
         }
 
         tg = self.config.test.traffic_generator
+        # avg 吞吐量用整段測試時間（duration + server_buffer + client_buffer）
+        total_seconds = (
+            self._parse_time_to_seconds(tg.duration) +
+            self._parse_time_to_seconds(getattr(tg, 'server_buffer_time', '0s')) +
+            self._parse_time_to_seconds(getattr(tg, 'client_buffer_time', '0s'))
+        )
+        # avg CPS 只用純測試 duration（連線在測試窗口內建立）
         duration_seconds = self._parse_time_to_seconds(tg.duration)
 
         server_ps = self.serverPerSecond
@@ -349,24 +358,27 @@ class dperf:
 
         def _derived(total_data, per_second):
             d = {}
-            dur = duration_seconds if duration_seconds > 0 else None
+            total_dur    = total_seconds    if total_seconds    > 0 else None
+            duration_dur = duration_seconds if duration_seconds > 0 else None
 
             bits_rx = total_data.get('bitsRx') if total_data else None
             pkt_rx  = total_data.get('pktRx')  if total_data else None
             sk_open = total_data.get('skOpen')  if total_data else None
 
-            d['avg_throughput_gbps'] = round(bits_rx / dur / 1e9, 6) if (bits_rx is not None and dur) else 'N/A'
+            d['avg_throughput_gbps'] = round(bits_rx / total_dur / 1e9, 6) if (bits_rx is not None and total_dur) else 'N/A'
             max_bits = _safe_max(per_second, 'bitsRx')
             d['max_throughput_gbps'] = round(max_bits / 1e9, 6) if isinstance(max_bits, (int, float)) else 'N/A'
-            d['avg_throughput_pps']  = round(pkt_rx / dur, 2)              if (pkt_rx  is not None and dur) else 'N/A'
+            d['avg_throughput_pps']  = round(pkt_rx / total_dur, 2)         if (pkt_rx  is not None and total_dur) else 'N/A'
             d['max_throughput_pps']  = _safe_max(per_second, 'pktRx')
-            d['avg_cps']             = round(sk_open / dur, 2)             if (sk_open is not None and dur) else 'N/A'
+            d['avg_cps']             = round(sk_open / duration_dur, 2)     if (sk_open is not None and duration_dur) else 'N/A'
             d['max_cps']             = _safe_max(per_second, 'skOpen')
             d['max_cc']              = _safe_max(per_second, 'skCon')
             return d
 
         server_derived = _derived(server_data, server_ps)
         client_derived = _derived(client_data, client_ps)
+        self.serverDerived = server_derived
+        self.clientDerived = client_derived
 
         with open(self.outputPath, 'w') as f:
 
@@ -375,6 +387,20 @@ class dperf:
 
             # Write header row
             writer.writerow(['Metric', 'Server', 'Client', 'Unit'])
+
+            # Test configuration metadata
+            writer.writerow(['protocol',
+                             self.pair.protocol,
+                             self.pair.protocol,
+                             ''])
+            writer.writerow(['pci_address',
+                             self.pair.server.server_nic_pci,
+                             self.pair.client.client_nic_pci,
+                             ''])
+            writer.writerow(['session',
+                             self.pair.client.cc,
+                             self.pair.client.cc,
+                             'count'])
             writer.writerow(['duration',
                              self.config.test.traffic_generator.duration,
                              self.config.test.traffic_generator.duration,
@@ -527,8 +553,7 @@ class dperf:
 
         per_second = []
         # 找每個 "seconds X" 區塊的起始位置
-        import re as _re
-        block_starts = [m.start() for m in _re.finditer(r'(?m)^seconds\s+\d+', raw)]
+        block_starts = [m.start() for m in re.finditer(r'(?m)^seconds\s+\d+', raw)]
 
         for i, start in enumerate(block_starts):
             end = block_starts[i + 1] if i + 1 < len(block_starts) else len(raw)
