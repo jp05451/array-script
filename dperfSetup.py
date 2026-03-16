@@ -46,6 +46,8 @@ class dperf:
         )
         self.serverOutput = None
         self.clientOutput = None
+        self.serverPerSecond = []
+        self.clientPerSecond = []
 
         # Initialize Redis Handler
         self.enable_redis = enable_redis
@@ -335,22 +337,36 @@ class dperf:
             'udpTx':     'packet',
         }
 
-        # Calculate total test time (duration + server_buffer_time + client_buffer_time)
         tg = self.config.test.traffic_generator
-        total_seconds = (
-            self._parse_time_to_seconds(tg.duration) +
-            self._parse_time_to_seconds(getattr(tg, 'server_buffer_time', '0s')) +
-            self._parse_time_to_seconds(getattr(tg, 'client_buffer_time', '0s'))
-        )
+        duration_seconds = self._parse_time_to_seconds(tg.duration)
 
-        # Calculate throughput (Mbps) from bitsRx / total_seconds
-        server_throughput = 'N/A'
-        client_throughput = 'N/A'
-        if total_seconds > 0:
-            if server_data and server_data.get('bitsRx') is not None:
-                server_throughput = round(server_data['bitsRx'] / total_seconds / 1e6, 4)
-            if client_data and client_data.get('bitsRx') is not None:
-                client_throughput = round(client_data['bitsRx'] / total_seconds / 1e6, 4)
+        server_ps = self.serverPerSecond
+        client_ps = self.clientPerSecond
+
+        def _safe_max(per_second, key):
+            vals = [s[key] for s in per_second if key in s and isinstance(s[key], (int, float))]
+            return max(vals) if vals else 'N/A'
+
+        def _derived(total_data, per_second):
+            d = {}
+            dur = duration_seconds if duration_seconds > 0 else None
+
+            bits_rx = total_data.get('bitsRx') if total_data else None
+            pkt_rx  = total_data.get('pktRx')  if total_data else None
+            sk_open = total_data.get('skOpen')  if total_data else None
+
+            d['avg_throughput_gbps'] = round(bits_rx / dur / 1e9, 6) if (bits_rx is not None and dur) else 'N/A'
+            max_bits = _safe_max(per_second, 'bitsRx')
+            d['max_throughput_gbps'] = round(max_bits / 1e9, 6) if isinstance(max_bits, (int, float)) else 'N/A'
+            d['avg_throughput_pps']  = round(pkt_rx / dur, 2)              if (pkt_rx  is not None and dur) else 'N/A'
+            d['max_throughput_pps']  = _safe_max(per_second, 'pktRx')
+            d['avg_cps']             = round(sk_open / dur, 2)             if (sk_open is not None and dur) else 'N/A'
+            d['max_cps']             = _safe_max(per_second, 'skOpen')
+            d['max_cc']              = _safe_max(per_second, 'skCon')
+            return d
+
+        server_derived = _derived(server_data, server_ps)
+        client_derived = _derived(client_data, client_ps)
 
         with open(self.outputPath, 'w') as f:
 
@@ -378,8 +394,23 @@ class dperf:
                 unit = METRIC_UNITS.get(key, '')
                 writer.writerow([key, server_value, client_value, unit])
 
-            # Write computed throughput row
-            writer.writerow(['throughput', server_throughput, client_throughput, 'Mbps'])
+            # Write computed derived metrics
+            DERIVED_UNITS = {
+                'avg_throughput_gbps': 'Gbps',
+                'max_throughput_gbps': 'Gbps',
+                'avg_throughput_pps':  'pps',
+                'max_throughput_pps':  'pps',
+                'avg_cps':             'cps',
+                'max_cps':             'cps',
+                'max_cc':              'count',
+            }
+            for metric, unit in DERIVED_UNITS.items():
+                writer.writerow([
+                    metric,
+                    server_derived.get(metric, 'N/A'),
+                    client_derived.get(metric, 'N/A'),
+                    unit,
+                ])
 
 
         print(f"[Pair {self.pair_index}] Test results have been exported to {self.outputPath}")
@@ -410,6 +441,7 @@ class dperf:
             print(f"[Pair {self.pair_index}] Server: Parsing output...")
             output = self.parseOutput(log)
             self.serverOutput = output
+            self.serverPerSecond = self.parsePerSecondData(log)
 
             # Write to Redis (if enabled and output data exists)
             if output and self.redis_handler and self.redis_handler.is_connected():
@@ -456,6 +488,7 @@ class dperf:
             print(f"[Pair {self.pair_index}] Client: Parsing output...")
             output = self.parseOutput(log)
             self.clientOutput = output
+            self.clientPerSecond = self.parsePerSecondData(log)
 
             # Write to Redis (if enabled and output data exists)
             if output and self.redis_handler and self.redis_handler.is_connected():
@@ -480,6 +513,42 @@ class dperf:
             os.remove(f'shell/client_pair{self.pair_index}.sh')
 
     
+
+    def parsePerSecondData(self, log):
+        """解析 log 中每秒區塊資料，回傳 list of dict（不含 Total Numbers 之後的資料）"""
+        raw = log[0]
+        ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
+        raw = ansi_escape.sub('', raw)
+
+        # 只取 Total Numbers 之前的部分
+        total_idx = raw.find("Total Numbers")
+        if total_idx != -1:
+            raw = raw[:total_idx]
+
+        per_second = []
+        # 找每個 "seconds X" 區塊的起始位置
+        import re as _re
+        block_starts = [m.start() for m in _re.finditer(r'(?m)^seconds\s+\d+', raw)]
+
+        for i, start in enumerate(block_starts):
+            end = block_starts[i + 1] if i + 1 < len(block_starts) else len(raw)
+            block = raw[start:end].strip()
+            block_dict = {}
+            for line in block.split('\n'):
+                parts = line.split()
+                j = 0
+                while j + 1 < len(parts):
+                    key = parts[j]
+                    val = parts[j + 1]
+                    try:
+                        block_dict[key] = int(val.replace(',', ''))
+                    except ValueError:
+                        block_dict[key] = val
+                    j += 2
+            if block_dict:
+                per_second.append(block_dict)
+
+        return per_second
 
     def parseOutput(self, log):
         log = log[0]
