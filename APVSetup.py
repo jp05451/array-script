@@ -380,6 +380,33 @@ class APVSetup:
         'backup hits':                'count',
     }
 
+    def resolvePortNames(self) -> None:
+        """執行 show ip address，解析 APV port name，填入每個 pair 的 apv_client_port / apv_server_port。
+
+        使用 execute_in_session（enable 模式），不需要額外 connect/disconnect。
+        找不到對應 IP 時填入 'unknown'。
+        """
+        shell = self.ssh_apv._executor
+        assert shell is not None, "APV SSH session not established; call connect() first"
+
+        shell.execute_in_session('enable', timeout=15)
+        shell.execute_in_session(self.apv_enable_password, timeout=15)
+        raw = shell.execute_in_session('show ip address', timeout=15)
+        shell.execute_in_session('disable', timeout=10)
+
+        # 解析：ip address "portX" <ip> <mask>
+        clean = OutputHandler.clean_ansi(raw)
+        clean = re.sub(r'\x08+', '', clean)
+        ip_map: dict[str, str] = {}
+        for line in clean.splitlines():
+            m = re.match(r'\s*ip address\s+"([^"]+)"\s+([\d.]+)', line)
+            if m:
+                ip_map[m.group(2)] = m.group(1)
+
+        for pair in self.pairs:
+            pair.apv_client_port = ip_map.get(pair.client.client_gw, 'unknown')
+            pair.apv_server_port = ip_map.get(pair.server.server_gw, 'unknown')
+
     def outputSLBStats(self, parsed: dict, output_path: str):
         """將解析後的 SLB 統計資料寫入 CSV。
 

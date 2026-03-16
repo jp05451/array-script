@@ -115,8 +115,8 @@ def main():
     if not dryRun:
         apv.connect()
         apv.clearEnv()
-    apv.setupEnv(dry_run=dryRun)
-    if not dryRun:
+        apv.setupEnv(dry_run=dryRun)
+        apv.resolvePortNames()
         apv.disconnect()
 
     # Create TrafficGenerator
@@ -155,10 +155,16 @@ def main():
             tg.disconnect()
 
             apv.connect()
+            try:
+                raw_slb = apv.collectSLBStats()
+                parsed_slb = APVSetup.parseSLBStats(raw_slb)
+                apv.outputSLBStats(parsed_slb, args.output)
+            except Exception as e:
+                print(f"[APVSetup] 收集 SLB 統計資料失敗: {e}")
             apv.clearEnv()
             apv.disconnect()
-            print("buffering logs for 60 seconds before exiting...")
-            sleep(60)
+            # print("buffering logs for 60 seconds before exiting...")
+            # sleep(60)
 
 
 if __name__ == "__main__":
