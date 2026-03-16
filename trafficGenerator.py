@@ -2,6 +2,8 @@ from config import Config
 from dperfSetup import dperf
 from system_monitor import SystemMonitor
 from threading import Thread
+import csv
+import os
 import time
 
 
@@ -179,6 +181,10 @@ class TrafficGenerator:
         # Add monitoring data to results
         results['monitor_data'] = self.monitor.get_data() if not dry_run else []
 
+        # 產生跨 pair 彙總報告
+        if not dry_run:
+            self.outputSummaryReport(self.output_path)
+
         print("[TrafficGenerator] Test completed")
         return results
 
@@ -231,6 +237,139 @@ class TrafficGenerator:
             t.join()
 
         return results
+
+    @staticmethod
+    def _parse_cc(cc_str: str) -> int:
+        """將 '2k'、'1m'、'500' 等 cc 字串轉換為整數"""
+        s = str(cc_str).strip().lower()
+        if s.endswith('k'):
+            return int(float(s[:-1]) * 1_000)
+        elif s.endswith('m'):
+            return int(float(s[:-1]) * 1_000_000)
+        try:
+            return int(s)
+        except ValueError:
+            return 0
+
+    def outputSummaryReport(self, output_path: str):
+        """產生跨所有 pair 的彙總 CSV（dperf_summary.csv）。
+
+        欄位格式：Metric | pair0_server | pair0_client | ... | total_server | total_client | Unit
+        """
+        os.makedirs(output_path, exist_ok=True)
+        out_file = os.path.join(output_path, 'dperf_summary.csv')
+        n = len(self.pairs)
+        tg = self.config.test.traffic_generator
+
+        # 建立 header
+        header = ['Metric']
+        for i in range(n):
+            header += [f'pair{i}_server', f'pair{i}_client']
+        header += ['total_server', 'total_client', 'Unit']
+
+        def make_row(metric, sv_list, cv_list, total_s, total_c, unit=''):
+            row = [metric]
+            for s, c in zip(sv_list, cv_list):
+                row += [s, c]
+            row += [total_s, total_c, unit]
+            return row
+
+        def safe_sum(vals):
+            nums = [v for v in vals if isinstance(v, (int, float))]
+            return sum(nums) if nums else 'N/A'
+
+        def safe_sum_round(vals, ndigits=6):
+            nums = [v for v in vals if isinstance(v, (int, float))]
+            return round(sum(nums), ndigits) if nums else 'N/A'
+
+        rows = []
+
+        # ── 元數據 ──────────────────────────────────────────────
+        rows.append(make_row(
+            'protocol',
+            [p.pair.protocol for p in self.pairs],
+            [p.pair.protocol for p in self.pairs],
+            '-', '-',
+        ))
+        rows.append(make_row(
+            'pci_address',
+            [p.pair.server.server_nic_pci for p in self.pairs],
+            [p.pair.client.client_nic_pci for p in self.pairs],
+            '-', '-',
+        ))
+        rows.append(make_row(
+            'apv_port',
+            [p.pair.apv_server_port for p in self.pairs],
+            [p.pair.apv_client_port for p in self.pairs],
+            '-', '-',
+        ))
+        rows.append(make_row(
+            'duration',
+            [tg.duration] * n,
+            [tg.duration] * n,
+            tg.duration, tg.duration, 's',
+        ))
+        cc_vals = [p.pair.client.cc for p in self.pairs]
+        total_cc = sum(self._parse_cc(cc) for cc in cc_vals)
+        rows.append(make_row('session', cc_vals, cc_vals, total_cc, total_cc, 'count'))
+
+        # ── 原始指標 ─────────────────────────────────────────────
+        METRIC_UNITS = {
+            'ackDup': 'count', 'ackRt': 'count',
+            'arpRx': 'packet', 'arpTx': 'packet',
+            'badRx': 'packet', 'dropTx': 'packet',
+            'ierrors': 'count', 'imissed': 'packet', 'oerrors': 'count',
+            'bitsRx': 'bits', 'bitsTx': 'bits',
+            'finRt': 'count', 'finRx': 'packet', 'finTx': 'packet',
+            'http2XX': 'count', 'httpErr': 'count',
+            'httpGet': 'count', 'httpPost': 'count',
+            'icmpRx': 'packet', 'icmpTx': 'packet',
+            'otherRx': 'packet',
+            'pktRx': 'packet', 'pktTx': 'packet',
+            'pushRt': 'count',
+            'rstRx': 'packet', 'rstTx': 'packet',
+            'skClose': 'count', 'skCon': 'count',
+            'skErr': 'count', 'skOpen': 'count',
+            'synRt': 'count', 'synRx': 'packet', 'synTx': 'packet',
+            'tcpDrop': 'packet', 'tcpRx': 'packet', 'tcpTx': 'packet',
+            'tosRx': 'packet',
+            'udpDrop': 'packet', 'udpRx': 'packet', 'udpTx': 'packet',
+        }
+
+        all_keys = set()
+        for p in self.pairs:
+            if p.serverOutput:
+                all_keys.update(p.serverOutput.keys())
+            if p.clientOutput:
+                all_keys.update(p.clientOutput.keys())
+
+        for key in sorted(all_keys):
+            sv = [p.serverOutput.get(key, 'N/A') if p.serverOutput else 'N/A' for p in self.pairs]
+            cv = [p.clientOutput.get(key, 'N/A') if p.clientOutput else 'N/A' for p in self.pairs]
+            rows.append(make_row(key, sv, cv, safe_sum(sv), safe_sum(cv), METRIC_UNITS.get(key, '')))
+
+        # ── 衍生指標 ─────────────────────────────────────────────
+        DERIVED_UNITS = {
+            'avg_throughput_gbps': 'Gbps',
+            'max_throughput_gbps': 'Gbps',
+            'avg_throughput_pps':  'pps',
+            'max_throughput_pps':  'pps',
+            'avg_cps':             'cps',
+            'max_cps':             'cps',
+            'max_cc':              'count',
+        }
+        for metric, unit in DERIVED_UNITS.items():
+            sv = [p.serverDerived.get(metric, 'N/A') for p in self.pairs]
+            cv = [p.clientDerived.get(metric, 'N/A') for p in self.pairs]
+            rows.append(make_row(metric, sv, cv,
+                                 safe_sum_round(sv), safe_sum_round(cv), unit))
+
+        with open(out_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(header)
+            writer.writerows(rows)
+
+        print(f"[TrafficGenerator] 彙總報告已輸出至 {out_file}")
 
     def get_pair(self, pair_index: int):
         """Retrieve specified pair instance
