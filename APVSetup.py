@@ -388,7 +388,32 @@ class APVSetup:
             pair.apv_client_port = ip_map.get(pair.client.client_gw, 'unknown')
             pair.apv_server_port = ip_map.get(pair.server.server_gw, 'unknown')
 
-    def outputSLBStats(self, parsed: dict, output_path: str):
+    def matchSLBStatsToPairs(self, parsed: dict) -> dict:
+        """將 parseSLBStats 回傳的 VS/RS 依名稱中的 pair_index 分組。
+
+        回傳：{pair_index: {'vs': vs_entry_or_None, 'rs': rs_entry_or_None}}
+        VS 名稱格式：{protocol}_vs_{pair_index}（如 tcp_vs_0）
+        RS 名稱格式：{protocol}_rs_{pair_index}（如 tcp_rs_0）
+        """
+        per_pair = {i: {'vs': None, 'rs': None} for i in range(len(self.pairs))}
+
+        for vs in parsed.get('vs', []):
+            m = re.search(r'_vs_(\d+)$', vs['name'])
+            if m:
+                idx = int(m.group(1))
+                if idx in per_pair:
+                    per_pair[idx]['vs'] = vs
+
+        for rs in parsed.get('rs', []):
+            m = re.search(r'_rs_(\d+)$', rs['name'])
+            if m:
+                idx = int(m.group(1))
+                if idx in per_pair:
+                    per_pair[idx]['rs'] = rs
+
+        return per_pair
+
+    def outputSLBStats(self, parsed: dict, per_pair_slb: dict, output_path: str):
         """將解析後的 SLB 統計資料寫入 CSV。
 
         輸出檔案：<output_path>/apv_slb_stats.csv
