@@ -11,3 +11,4 @@ config/
 *.csv
 shell/*pair*.sh
 .vscode
+.claude
