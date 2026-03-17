@@ -417,28 +417,39 @@ class APVSetup:
         """將解析後的 SLB 統計資料寫入 CSV。
 
         輸出檔案：<output_path>/apv_slb_stats.csv
-        欄位：Type, Identifier, Metric, Value, Unit
+        欄位：Type, Pair, Metric, Value, Unit
         """
         os.makedirs(output_path, exist_ok=True)
         csv_path = os.path.join(output_path, 'apv_slb_stats.csv')
+
+        # 建立 identifier → pair_label 反向查找表
+        id_to_pair: dict[str, str] = {}
+        for pair_idx, slb in per_pair_slb.items():
+            for kind in ('vs', 'rs'):
+                entry = slb.get(kind)
+                if entry:
+                    idf = f"{entry['name']} ({entry['ip']}:{entry['port']}) [{entry['status']}]"
+                    id_to_pair[idf] = f'pair_{pair_idx}'
 
         rows = []
 
         for vs in parsed.get('vs', []):
             identifier = f"{vs['name']} ({vs['ip']}:{vs['port']}) [{vs['status']}]"
+            pair_label = id_to_pair.get(identifier, '-')
             for metric, value in vs['metrics'].items():
                 unit = self._SLB_METRIC_UNITS.get(metric, '')
-                rows.append(['VS', identifier, metric, value, unit])
+                rows.append(['VS', pair_label, metric, value, unit])
 
         for rs in parsed.get('rs', []):
             identifier = f"{rs['name']} ({rs['ip']}:{rs['port']}) [{rs['status']}]"
+            pair_label = id_to_pair.get(identifier, '-')
             for metric, value in rs['metrics'].items():
                 unit = self._SLB_METRIC_UNITS.get(metric, '')
-                rows.append(['RS', identifier, metric, value, unit])
+                rows.append(['RS', pair_label, metric, value, unit])
 
         with open(csv_path, 'w', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(['Type', 'Identifier', 'Metric', 'Value', 'Unit'])
+            writer.writerow(['Type', 'Pair', 'Metric', 'Value', 'Unit'])
             writer.writerows(rows)
 
         print(f"[APVSetup] SLB 統計資料已輸出至 {csv_path}")
