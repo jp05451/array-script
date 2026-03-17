@@ -135,19 +135,8 @@ def main():
         tg.setup_env(dry_run=dryRun)
 
         # Run test
-        results = tg.run_test(parallel=True, enable_monitor=True, dry_run=dryRun)
+        tg.run_test(parallel=True, enable_monitor=True, dry_run=dryRun)
 
-        print("\n" + "=" * 60)
-        print("Test Summary:")
-        print("=" * 60)
-
-        for pair_name, pair_result in results.items():
-            if pair_name == 'monitor_data':
-                print(f"\nMonitoring data points: {len(pair_result)}")
-            else:
-                print(f"\n{pair_name}:")
-                print(f"  Server: {pair_result.get('server')}")
-                print(f"  Client: {pair_result.get('client')}")
 
     finally:
         if not dryRun:
@@ -158,14 +147,15 @@ def main():
             try:
                 raw_slb = apv.collectSLBStats()
                 parsed_slb = APVSetup.parseSLBStats(raw_slb)
-                apv.outputSLBStats(parsed_slb, args.output)
+                per_pair_slb = apv.matchSLBStatsToPairs(parsed_slb)
+                apv.outputSLBStats(parsed_slb, per_pair_slb, args.output)
+                tg.appendSLBStats(per_pair_slb)
             except Exception as e:
                 print(f"[APVSetup] 收集 SLB 統計資料失敗: {e}")
             apv.clearEnv()
             apv.disconnect()
-            # print("buffering logs for 60 seconds before exiting...")
-            # sleep(60)
-
+            print("================================================================")
+            tg.printFormattedSummary(per_pair_slb)
 
 if __name__ == "__main__":
     main()
