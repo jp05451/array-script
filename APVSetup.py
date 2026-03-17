@@ -15,6 +15,7 @@ class APVSetup:
         self.apv_password: str = config.test.apv_password
         self.apv_enable_password: str = config.test.apv_enable_password
         self.pairs = config.test.traffic_generator.pairs
+        self.per_pair_slb: dict = {}
         self.ssh_apv = ssh_executor.SSHExecutor(
             host=self.apv_management_ip,
             port=self.apv_management_port,
@@ -453,7 +454,14 @@ class APVSetup:
             writer.writerows(rows)
 
         print(f"[APVSetup] SLB 統計資料已輸出至 {csv_path}")
-        
+
+    def collectAndProcessSLBStats(self, output_path: str) -> None:
+        """收集、解析、分組並輸出 SLB 統計資料，結果存入 self.per_pair_slb。"""
+        raw = self.collectSLBStats()
+        parsed = self.parseSLBStats(raw)
+        self.per_pair_slb = self.matchSLBStatsToPairs(parsed)
+        self.outputSLBStats(parsed, self.per_pair_slb, output_path)
+
 def argParser():
     import argparse
 
