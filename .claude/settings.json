@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python3 -c \"from APVSetup import APVSetup; from trafficGenerator import TrafficGenerator; from main import main; print\\(''OK''\\)\")",
-      "Bash(python3 -c \"from trafficGenerator import TrafficGenerator; from main import main; print\\(''OK''\\)\")"
-    ]
-  }
-}
