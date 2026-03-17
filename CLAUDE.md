@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## output
 All outputs must use traditional Chinese
@@ -8,27 +8,31 @@ All outputs must use traditional Chinese
 ## Running Tests
 
 ```bash
-# Run unit tests (uses unittest + mocks, no SSH required)
+# Run all unit tests (uses unittest + mocks, no SSH required)
 python test_dperf.py
 
 # Run a specific test class
 python -m unittest test_dperf.TestDperfParseOutput -v
+
+# Other test files (also mock-based, no SSH)
+python test_config.py
+python test_redisdb.py
 ```
 
-## Running the Test
+## Running the Main Script
 
 ```bash
 # Standard run (uses config.yaml by default)
 python main.py -c config.yaml
 
 # Key CLI overrides
-python main.py -c config_tcp.yaml -d 1s -p 1024 --sessions 2k
+python main.py -c config.yaml -d 40s -p 1024 --sessions 2k
 python main.py --dry-run          # Skip actual dperf traffic, test setup/teardown only
 python main.py --enable-redis     # Persist monitoring data to Redis
 python main.py -o ./results --log ./logs
 ```
 
-Available protocol configs: `config.yaml`, `config_tcp.yaml`, `config_udp.yaml`, `config_http.yaml`
+Available protocol configs: `config.yaml` (TCP). Additional configs follow the same schema.
 
 ## Architecture Overview
 
@@ -36,13 +40,15 @@ The system automates DPerf network performance tests against an Array Networks A
 
 ### Execution Flow (`main.py`)
 
-1. **APVSetup** — SSH into the APV device, clear any existing LB config, then configure TCP/UDP/HTTP load balancers from the YAML config.
-2. **TrafficGenerator** — orchestrates all subsequent work:
-   - Creates one **SystemMonitor** (monitors the traffic generator host's CPU/RAM and optionally APV CPU) and one **dperf** instance per pair.
-   - Calls `setup_env()` → binds NICs to DPDK (`vfio-pci`), sets hugepages, uploads dperf config files.
-   - Calls `run_test()` → starts `SystemMonitor`, then runs `dperf.runPairTest()` for each pair (sequentially or in parallel threads).
-   - After tests, calls `clearEnv()` → unbinds NICs, clears hugepages.
-3. **Results** — each pair writes a CSV to `<output_path>/dperf_pair{i}_results.csv`; `SystemMonitor` writes `<output_path>/system_monitor.csv` in real-time.
+1. **APVSetup.clearEnv + setupEnv** — SSH into APV, clear existing LB config, then configure VS/RS/policy for each pair. Naming convention: `{protocol}_vs_{pair_index}` and `{protocol}_rs_{pair_index}` (e.g., `tcp_vs_0`, `tcp_rs_0`).
+2. **APVSetup.resolvePortNames** — Runs `show ip address` on APV to populate `pair.apv_client_port` / `pair.apv_server_port` from gateway IPs. These runtime fields start empty in config.
+3. **TrafficGenerator.setup_env** — Binds NICs to DPDK (`vfio-pci`), sets hugepages, uploads dperf conf files.
+4. **TrafficGenerator.run_test** — Starts `SystemMonitor`, runs `dperf.runPairTest()` per pair (parallel threads), calls `outputSummaryReport()` on completion.
+5. **TrafficGenerator.clearEnv** — Unbinds NICs, clears hugepages.
+6. **APVSetup.collectSLBStats** — Reconnects APV, runs `show statistics slb all`, handles `--More--` pagination.
+7. **APVSetup.parseSLBStats / matchSLBStatsToPairs / outputSLBStats** — Parses VS/RS blocks, matches to pairs by name regex (`_vs_(\d+)$`), writes `apv_slb_stats.csv`.
+8. **TrafficGenerator.appendSLBStats** — Appends SLB section to per-pair CSVs and `dperf_summary.csv`.
+9. **TrafficGenerator.printFormattedSummary** — Prints vendor-spec formatted console output (global totals + per-pair detail + VS/RS metrics).
 
 ### Key Class Relationships
 
@@ -60,42 +66,67 @@ TrafficGenerator (trafficGenerator.py)
 
 ### `SSHExecutor` (ssh_executor.py)
 
-Two modes of SSH execution:
-- **Simple**: `execute_command(cmd)` / `execute_script(path)` — opens a fresh channel per call, captures full output.
-- **Persistent session**: `connect(persistent_session=True)` → `execute_in_session(cmd, timeout)` — maintains a single interactive shell, preserving working directory and environment across calls. Required for APV CLI (which uses a stateful prompt) and for dperf directory context.
+Two modes:
+- **Simple**: `execute_command(cmd)` / `execute_script(path)` — fresh channel per call.
+- **Persistent session**: `connect(persistent_session=True)` → `execute_in_session(cmd, timeout)` — single interactive shell, preserves working directory. Required for APV CLI (stateful prompt) and dperf directory context.
 
-`OutputHandler.clean_ansi()` is used throughout to strip ANSI escape sequences from SSH output before parsing.
+The inner `CommandExecutor` is accessible as `ssh_executor._executor`; `execute_in_session` is called directly on it in `APVSetup.collectSLBStats` and `resolvePortNames`.
 
-### `SystemMonitor` (system_monitor.py)
-
-Accepts a `Config` object and `output_path`; extracts TG and APV connection details from config internally. Two threads:
-- **Main thread**: polls `top` (CPU) and `free -m` (RAM) on the TG host every 1 second; appends rows to CSV in real-time.
-- **APV thread** (daemon, optional): polls `show statistics cpu` on APV every 3 seconds; stores latest value for the main thread to include in each CSV row.
-
-APV monitoring requires all four APV credential fields to be set in config (`apv_management_ip`, `apv_username`, `apv_password`, `apv_enable_password`). The APV CLI requires entering enable mode at connect time (`enable` → password).
+`OutputHandler.clean_ansi()` strips ANSI escape sequences before parsing throughout.
 
 ### `dperf` (dperfSetup.py)
 
-Each instance manages one NIC pair. Uses **three separate SSH executors** (management for setup commands, server for dperf server process, client for dperf client process) so server and client can run concurrently in threads. Results are parsed from the `Total Numbers:` block in dperf output and written to CSV via `outputResults()`.
+Each instance manages one NIC pair using **three separate SSH executors** (management, server, client) so server and client processes run concurrently in threads.
+
+**Two parsing stages:**
+- `parseOutput(log)` — extracts the `Total Numbers:` block at test end → `serverOutput` / `clientOutput` dicts. Used for avg computations.
+- `parsePerSecondData(log)` — parses all `seconds X` blocks before `Total Numbers` → `serverPerSecond` / `clientPerSecond` lists. Used for max computations.
+
+**Derived metrics** computed in `_derived()` inside `outputResults()`:
+| Metric | Formula |
+|--------|---------|
+| `avg_throughput_gbps` | `bitsRx / total_seconds / 1e9` |
+| `max_throughput_gbps` | `max(per_second bitsRx) / 1e9` |
+| `avg_throughput_pps` | `pktRx / total_seconds` |
+| `max_throughput_pps` | `max(per_second pktRx)` |
+| `avg_cps` | `skOpen / duration_seconds` |
+| `max_cps` | `max(per_second skOpen)` |
+| `max_cc` | `max(per_second skCon)` ← Total Numbers skCon is always 0 |
+
+`total_seconds` = `duration + server_buffer_time + client_buffer_time`; `duration_seconds` = `duration` only.
+
+### `APVSetup` (APVSetup.py)
+
+SLB VS/RS naming must follow `{protocol}_vs_{pair_index}` / `{protocol}_rs_{pair_index}` for `matchSLBStatsToPairs()` to correctly associate statistics to pairs. The APV CLI requires entering enable mode (`enable` → password) before stat collection.
+
+### `SystemMonitor` (system_monitor.py)
+
+Two threads: main thread polls `top` + `free -m` on TG host every 1s; APV daemon thread polls `show statistics cpu` every 3s. APV monitoring requires all four `apv_*` credential fields in config.
 
 ### `Config` (config.py)
 
-Pure dataclass hierarchy loaded from YAML. Key path: `config.test.traffic_generator.pairs[i].client` / `.server`. CLI args in `main.py:argOverrideConfig()` can override `duration`, `cc` (sessions), `payload_size`, and `keepalive` after loading.
+Pure dataclass hierarchy. CLI args override `duration`, `cc`, `payload_size`, `keepalive` after loading. `apv_client_port` / `apv_server_port` on `TrafficGeneratorPair` are runtime-only (not in YAML).
 
 ### Redis (optional)
 
-`RedisHandler` (RedisDB.py) stores test output and monitor data keyed by pair index and timestamp. Disabled by default (`enable_redis=False`). `SystemMonitor._save_to_redis()` and `dperf.serverStart/clientStart` both call Redis when enabled. `dperf.outputResults()` will prefer Redis data over local if available.
+`RedisHandler` (RedisDB.py) is disabled by default (`enable_redis=False`). When enabled, `dperf.outputResults()` prefers Redis data over local.
 
 ## Output Files
 
 | File | Written by | Content |
 |------|-----------|---------|
-| `<output_path>/dperf_pair{i}_results.csv` | `dperf.outputResults()` | Per-metric server vs client comparison |
-| `<output_path>/system_monitor.csv` | `SystemMonitor` (real-time) | Timestamp, TG CPU%, TG RAM, APV CPU% |
-| `<log_path>/dperf_pair{i}*.log` | `SSHExecutor` | Raw SSH session output |
-| `<log_path>/system_monitor_tg.log` | `SSHExecutor` | TG monitor SSH session |
-| `<log_path>/system_monitor_apv.log` | `SSHExecutor` | APV monitor SSH session |
+| `<output>/dperf_pair{i}_results.csv` | `dperf.outputResults()` | Per-metric server vs client + derived metrics; SLB section appended later |
+| `<output>/dperf_summary.csv` | `TrafficGenerator.outputSummaryReport()` | Cross-pair summary; SLB section appended later |
+| `<output>/apv_slb_stats.csv` | `APVSetup.outputSLBStats()` | VS/RS metrics with Pair/Type columns |
+| `<output>/system_monitor.csv` | `SystemMonitor` (real-time) | Timestamp, TG CPU%, TG RAM, APV CPU% |
+| `<log>/dperf_pair{i}*.log` | `SSHExecutor` | Raw SSH output |
+| `<log>/apv_slb_raw.log` | `APVSetup.collectSLBStats()` | Raw APV stat output for debugging |
 
 ## Python Version & Dependencies
 
 Requires Python 3.10+ (uses `X | Y` union type syntax). Dependencies: `paramiko`, `pyyaml`, `redis` (optional).
+
+## Utility Scripts
+
+- `scan_functions.py` — AST-scans all `.py` files and can update README with class/function listings.
+- `show_nic_info.py` — SSH helper to display NIC/PCI info on remote TG host.
