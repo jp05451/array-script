@@ -145,17 +145,14 @@ def main():
 
             apv.connect()
             try:
-                raw_slb = apv.collectSLBStats()
-                parsed_slb = APVSetup.parseSLBStats(raw_slb)
-                per_pair_slb = apv.matchSLBStatsToPairs(parsed_slb)
-                apv.outputSLBStats(parsed_slb, per_pair_slb, args.output)
-                tg.appendSLBStats(per_pair_slb)
+                apv.collectAndProcessSLBStats(args.output)
+                tg.appendSLBStats(apv.per_pair_slb)
             except Exception as e:
                 print(f"[APVSetup] 收集 SLB 統計資料失敗: {e}")
             apv.clearEnv()
             apv.disconnect()
             print("================================================================")
-            tg.printFormattedSummary(per_pair_slb)
+            tg.printFormattedSummary(apv.per_pair_slb)
 
 if __name__ == "__main__":
     main()
