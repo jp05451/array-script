@@ -1,6 +1,7 @@
 from config import Config
 from dperfSetup import dperf
 from system_monitor import SystemMonitor
+from APVSetup import APVSetup
 from threading import Thread
 import csv
 import os
@@ -370,6 +371,160 @@ class TrafficGenerator:
             writer.writerows(rows)
 
         print(f"[TrafficGenerator] 彙總報告已輸出至 {out_file}")
+
+    def appendSLBStats(self, per_pair_slb: dict):
+        """將 SLB 統計資料追加至 per-pair CSV 與 summary CSV。
+
+        Args:
+            per_pair_slb: matchSLBStatsToPairs() 回傳的 dict
+                          {pair_index: {'vs': entry_or_None, 'rs': entry_or_None}}
+        """
+        # ── per-pair CSV 追加 ─────────────────────────────────────────────
+        for i, pair_obj in enumerate(self.pairs):
+            slb = per_pair_slb.get(i, {'vs': None, 'rs': None})
+            vs_entry = slb.get('vs')
+            rs_entry = slb.get('rs')
+
+            pair_csv = os.path.join(self.output_path, f'dperf_pair{i}_results.csv')
+            if not os.path.exists(pair_csv):
+                continue
+
+            with open(pair_csv, 'a', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([])
+                writer.writerow(['# SLB Statistics', '', '', ''])
+                if vs_entry:
+                    writer.writerow([f'slb_vs_name', vs_entry['name'], '', ''])
+                    writer.writerow([f'slb_vs_status', vs_entry['status'], '', ''])
+                    for metric, value in vs_entry['metrics'].items():
+                        unit = APVSetup._SLB_METRIC_UNITS.get(metric, '')
+                        writer.writerow([f'slb_vs_{metric}', value, '', unit])
+                if rs_entry:
+                    writer.writerow([f'slb_rs_name', rs_entry['name'], '', ''])
+                    writer.writerow([f'slb_rs_status', rs_entry['status'], '', ''])
+                    for metric, value in rs_entry['metrics'].items():
+                        unit = APVSetup._SLB_METRIC_UNITS.get(metric, '')
+                        writer.writerow([f'slb_rs_{metric}', value, '', unit])
+
+        # ── summary CSV 追加 ──────────────────────────────────────────────
+        summary_csv = os.path.join(self.output_path, 'dperf_summary.csv')
+        if not os.path.exists(summary_csv):
+            return
+
+        n = len(self.pairs)
+        header = ['Metric']
+        for i in range(n):
+            header += [f'pair{i}_server', f'pair{i}_client']
+        header += ['total_server', 'total_client', 'Unit']
+
+        def safe_sum(vals):
+            nums = [v for v in vals if isinstance(v, (int, float))]
+            return sum(nums) if nums else 'N/A'
+
+        def make_row(metric, sv_list, cv_list, total_s, total_c, unit=''):
+            row = [metric]
+            for s, c in zip(sv_list, cv_list):
+                row += [s, c]
+            row += [total_s, total_c, unit]
+            return row
+
+        # 蒐集所有 VS/RS metric key（保持順序）
+        vs_keys: list[str] = []
+        rs_keys: list[str] = []
+        seen_vs: set[str] = set()
+        seen_rs: set[str] = set()
+        for i in range(n):
+            slb = per_pair_slb.get(i, {})
+            vs_entry = slb.get('vs')
+            rs_entry = slb.get('rs')
+            if vs_entry:
+                for k in vs_entry['metrics']:
+                    if k not in seen_vs:
+                        vs_keys.append(k)
+                        seen_vs.add(k)
+            if rs_entry:
+                for k in rs_entry['metrics']:
+                    if k not in seen_rs:
+                        rs_keys.append(k)
+                        seen_rs.add(k)
+
+        slb_rows = []
+        for key in vs_keys:
+            sv = [per_pair_slb.get(i, {}).get('vs', {}) or {} for i in range(n)]
+            vals = [e.get('metrics', {}).get(key, 'N/A') if e else 'N/A' for e in sv]
+            slb_rows.append(make_row(
+                f'slb_vs_{key}', vals, [''] * n,
+                safe_sum(vals), '', APVSetup._SLB_METRIC_UNITS.get(key, '')
+            ))
+        for key in rs_keys:
+            rv = [per_pair_slb.get(i, {}).get('rs', {}) or {} for i in range(n)]
+            vals = [e.get('metrics', {}).get(key, 'N/A') if e else 'N/A' for e in rv]
+            slb_rows.append(make_row(
+                f'slb_rs_{key}', [''] * n, vals,
+                '', safe_sum(vals), APVSetup._SLB_METRIC_UNITS.get(key, '')
+            ))
+
+        with open(summary_csv, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([])
+            writer.writerow(['# SLB Statistics'] + [''] * (len(header) - 1))
+            # writer.writerow(header)
+            writer.writerows(slb_rows)
+
+        print(f"[TrafficGenerator] SLB 統計資料已追加至 per-pair CSV 與 {summary_csv}")
+
+    def printFormattedSummary(self, per_pair_slb: dict):
+        """依廠商 spec 格式輸出測試摘要至 console。
+
+        Args:
+            per_pair_slb: matchSLBStatsToPairs() 回傳的 dict
+        """
+        tg = self.config.test.traffic_generator
+
+        def safe_sum(vals):
+            nums = [v for v in vals if isinstance(v, (int, float))]
+            return round(sum(nums), 6) if nums else 'N/A'
+
+        # ── 全局摘要 ──────────────────────────────────────────────
+        total_cc = sum(self._parse_cc(p.pair.client.cc) for p in self.pairs)
+        single_cc = self.pairs[0].pair.client.cc if self.pairs else 'N/A'
+
+        print(f"\nTest duration: {tg.duration}")
+        print(f"Session number: {single_cc} (single pair), {total_cc} (Total)")
+        print(f"Max throughput: {safe_sum([p.clientDerived.get('max_throughput_gbps', 'N/A') for p in self.pairs])} (Gbps), "
+              f"{safe_sum([p.clientDerived.get('max_throughput_pps', 'N/A') for p in self.pairs])} (pps)")
+        print(f"Average Throughput: {safe_sum([p.clientDerived.get('avg_throughput_gbps', 'N/A') for p in self.pairs])} (Gbps), "
+              f"{safe_sum([p.clientDerived.get('avg_throughput_pps', 'N/A') for p in self.pairs])} (pps)")
+        print(f"Max concurrent Connection: {safe_sum([p.clientDerived.get('max_cc', 'N/A') for p in self.pairs])}")
+        print(f"Max Connection Per Second: {safe_sum([p.clientDerived.get('max_cps', 'N/A') for p in self.pairs])} (cps)")
+        print(f"Average Connection Per Second: {safe_sum([p.clientDerived.get('avg_cps', 'N/A') for p in self.pairs])} (cps)")
+
+        # ── 每個 pair ─────────────────────────────────────────────
+        print("\nPairs:")
+        for i, pair_obj in enumerate(self.pairs):
+            pair = pair_obj.pair
+            cd = pair_obj.clientDerived
+            slb = per_pair_slb.get(i, {'vs': None, 'rs': None})
+            vs_entry = slb.get('vs')
+            rs_entry = slb.get('rs')
+
+            print(f"- Traffic generator PCI: {pair.client.client_nic_pci}")
+            print(f"  APV port number: {pair.apv_client_port}")
+            print(f"  Session number: {pair.client.cc}")
+            print(f"  Pair Max Throughput: {cd.get('max_throughput_gbps', 'N/A')} (Gbps), {cd.get('max_throughput_pps', 'N/A')} (pps)")
+            print(f"  Pair Average Throughput: {cd.get('avg_throughput_gbps', 'N/A')} (Gbps), {cd.get('avg_throughput_pps', 'N/A')} (pps)")
+            print(f"  Pair Max Connection: {cd.get('max_cc', 'N/A')}")
+            print(f"  Pair Max Connection Per Second: {cd.get('max_cps', 'N/A')} (cps)")
+            print(f"  Pair Average Connection Per Second: {cd.get('avg_cps', 'N/A')} (cps)")
+            print("  SLB Statistics Data:")
+            if vs_entry:
+                print(f"  VS: {vs_entry['ip']}")
+                for metric, value in vs_entry['metrics'].items():
+                    print(f"    {metric}: {value}")
+            if rs_entry:
+                print(f"  RS: {rs_entry['ip']}")
+                for metric, value in rs_entry['metrics'].items():
+                    print(f"    {metric}: {value}")
 
     def get_pair(self, pair_index: int):
         """Retrieve specified pair instance
