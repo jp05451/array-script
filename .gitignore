@@ -12,3 +12,5 @@ config/
 shell/*pair*.sh
 .vscode
 .claude
+*.md
+!README.md
