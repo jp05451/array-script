@@ -1140,7 +1140,15 @@ test:
 
 1. **CPU 核心數**：Server 端通常需要比 Client 端更多核心，建議 server_cpu_core ≥ client_cpu_core
 2. **測試時間**：以 `traffic_generator.duration` 作為基礎時間，並用緩衝時間讓 client duration = duration + server_buffer_time、server duration = duration + client_buffer_time
-3. **記憶體配置**：socket_mem 應根據併發連線數和封包大小調整，建議至少 1024 MB
+3. **記憶體配置**：`socket_mem` 應根據併發連線數和封包大小調整，建議至少 1024 MB。啟用 `jumbo_mtu` 時，DPDK 的 mbuf 大小會從 ~2048 bytes 增加至 11264 bytes（約 5.5 倍）。一般測試（`cc` ≤ 10k）下 1024 MB 仍足夠，高並發時需相應擴充：
+
+   | 併發連線數 (`cc`) | jumbo 模式建議 `socket_mem` |
+   |-------------------|-----------------------------|
+   | ≤ 10k             | 1024 MB                     |
+   | ~100k             | 2048 MB                     |
+   | ~1M+              | 4096 MB+（並增加 `hugepage_frames`）|
+
+   > 注意：`hugepage_frames × hugepage_size` 必須 ≥ 所有 pair 的 `socket_mem` 總和。例如 `hugepage_frames: 2`、`hugepage_size: 1G` 共 2 GB，足以支撐兩組 pair 各 1024 MB 的配置。
 4. **併發連線數**：cc 值會影響資源使用，應根據測試目標和系統能力設定
 5. **RSS 設定**：多核心環境下建議啟用 RSS 以提升效能
 
@@ -2562,7 +2570,15 @@ test:
 
 1. **CPU 核心數**：Server 端通常需要比 Client 端更多核心，建議 server_cpu_core ≥ client_cpu_core
 2. **測試時間**：以 `traffic_generator.duration` 作為基礎時間，並用緩衝時間讓 client duration = duration + server_buffer_time、server duration = duration + client_buffer_time
-3. **記憶體配置**：socket_mem 應根據併發連線數和封包大小調整，建議至少 1024 MB
+3. **記憶體配置**：`socket_mem` 應根據併發連線數和封包大小調整，建議至少 1024 MB。啟用 `jumbo_mtu` 時，DPDK 的 mbuf 大小會從 ~2048 bytes 增加至 11264 bytes（約 5.5 倍）。一般測試（`cc` ≤ 10k）下 1024 MB 仍足夠，高並發時需相應擴充：
+
+   | 併發連線數 (`cc`) | jumbo 模式建議 `socket_mem` |
+   |-------------------|-----------------------------|
+   | ≤ 10k             | 1024 MB                     |
+   | ~100k             | 2048 MB                     |
+   | ~1M+              | 4096 MB+（並增加 `hugepage_frames`）|
+
+   > 注意：`hugepage_frames × hugepage_size` 必須 ≥ 所有 pair 的 `socket_mem` 總和。例如 `hugepage_frames: 2`、`hugepage_size: 1G` 共 2 GB，足以支撐兩組 pair 各 1024 MB 的配置。
 4. **併發連線數**：cc 值會影響資源使用，應根據測試目標和系統能力設定
 5. **RSS 設定**：多核心環境下建議啟用 RSS 以提升效能
 

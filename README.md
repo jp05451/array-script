@@ -1137,7 +1137,15 @@ test:
 
 1. **CPU cores**: Server typically needs more cores than client. Recommend `server_cpu_core` ≥ `client_cpu_core`
 2. **Test duration**: Configure `traffic_generator.duration` as the base time, and use buffer times so that client duration = duration + server_buffer_time and server duration = duration + client_buffer_time
-3. **Memory**: `socket_mem` should be adjusted based on concurrency and packet size; recommend at least 1024 MB
+3. **Memory**: `socket_mem` should be adjusted based on concurrency and packet size; recommend at least 1024 MB. When `jumbo_mtu` is enabled, DPDK increases the mbuf size from ~2048 bytes to 11264 bytes (~5.5×). For typical tests (`cc` ≤ 10k), 1024 MB remains sufficient. Scale up for higher concurrency:
+
+   | Concurrency (`cc`) | Recommended `socket_mem` (jumbo mode) |
+   |--------------------|---------------------------------------|
+   | ≤ 10k              | 1024 MB                               |
+   | ~100k              | 2048 MB                               |
+   | ~1M+               | 4096 MB+ (increase `hugepage_frames`) |
+
+   > Note: `hugepage_frames × hugepage_size` must be ≥ total `socket_mem` across all pairs. With `hugepage_frames: 2` and `hugepage_size: 1G`, the total is 2 GB — enough for two pairs at 1024 MB each.
 4. **Concurrency**: `cc` affects resource usage; tune based on targets and system capacity
 5. **RSS**: Enable RSS in multi-core environments for better performance
 
