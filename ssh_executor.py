@@ -349,6 +349,7 @@ class SSHExecutor:
         )
         self.output_handler = OutputHandler(log_path)
         self._executor: Optional[CommandExecutor] = None
+        self.persistent_session: bool = True
 
     def connect(self, persistent_session: bool = False) -> None:
         """
