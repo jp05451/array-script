@@ -202,7 +202,7 @@ class APVSetup:
         self.ssh_apv.execute_command('write memory',real_time=True)
     
     def connect(self):
-        self.ssh_apv.connect(persistent_session=True,)
+        self.ssh_apv.connect(persistent_session=True,keepalive_interval=30)
 
     def disconnect(self):
         self.ssh_apv.close()
@@ -212,18 +212,18 @@ class APVSetup:
     # -------------------------------------------------------------------------
 
     def collectSLBStats(self) -> str:
-        """進入 enable 模式後執行 show statistics slb all，回傳完整原始輸出字串。
+        """Run 'show statistics slb all' after entering enable mode and return complete raw output string.
 
-        APV 會對輸出分頁（--More--），持續送 'c' 直到取得完整內容。
-        執行完畢後送 exit 退回 user mode，確保後續 clearEnv 的 enable 流程不受干擾。
-        原始輸出會同時寫入 <logPath>/apv_slb_raw.log 供除錯用。
+        APV paginates output with "--More--", continue sending 'c' until full content is obtained.
+        After execution, send 'exit' to return to user mode to ensure subsequent clearEnv enable flow is not affected.
+        Raw output is also written to <logPath>/apv_slb_raw.log for debugging.
         """
         shell = self.ssh_apv._executor
         assert shell is not None, "APV SSH session not established; call connect() first"
         shell.execute_in_session('enable', timeout=15)
         shell.execute_in_session(self.apv_enable_password, timeout=15)
 
-        # 收集完整輸出：APV 分頁時持續送 Enter('\n') 直到看到 prompt（AN#）
+        # Collect full output: Continue sending Enter('\n') when APV paginates until prompt (AN#) is seen
         full_output = shell.execute_in_session('show statistics slb all', timeout=30)
         while '--More--' in full_output and not re.search(r'AN[^\n]*#\s*$', full_output):
             page = shell.execute_in_session('\n', timeout=30)
@@ -231,9 +231,9 @@ class APVSetup:
             if re.search(r'AN[^\n]*#\s*$', page):
                 break
 
-        shell.execute_in_session('disable', timeout=10)   # 退回 user mode（不關閉 session）
+        shell.execute_in_session('disable', timeout=10)   # Return to user mode (do not close session)
 
-        # 寫入 debug log（清除退格符與 --More-- 後再存檔）
+        # Write debug log (remove backspace and --More-- before saving)
         debug_log = os.path.join(self.logPath, 'apv_slb_raw.log')
         try:
             clean_log = OutputHandler.clean_ansi(full_output)
@@ -248,24 +248,24 @@ class APVSetup:
 
     @staticmethod
     def parseSLBStats(raw: str) -> dict:
-        """解析 show statistics slb all 的原始輸出。
+        """Parse raw output of 'show statistics slb all'.
 
-        回傳結構：
+        Return structure:
             {
               'vs': [{'ip': str, 'metrics': {field: value}}, ...],
               'rs': [{'name': str, 'ip': str, 'port': str, 'status': str,
                       'metrics': {field: value}}, ...],
             }
         """
-        # 移除 ANSI 控制碼、\r、退格符(\x08) 及 --More-- 汙染
+        # Remove ANSI control codes, \r, backspace (\x08) and --More-- artifacts
         clean = OutputHandler.clean_ansi(raw)
         clean = re.sub(r'\x08+', '', clean)
         clean = re.sub(r'[ \t]*--More--[ \t]*', '', clean)
 
         result = {'vs': [], 'rs': []}
 
-        # ── 解析 RS 區塊 ──────────────────────────────────────────────────────
-        # 標頭格式：Real service <name> <ip> <port> <state...>
+        # ── Parse RS Blocks ──────────────────────────────────────────────────────────
+        # Header format: Real service <name> <ip> <port> <state...>
         rs_header = re.compile(
             r'^Real service\s+(\S+)\s+([\d.]+)\s+(\d+)\s+(.+)', re.MULTILINE
         )
@@ -276,6 +276,7 @@ class APVSetup:
             block_text  = clean[block_start:block_end]
 
             metrics = APVSetup._parse_kv_block(block_text)
+            metrics.pop('First hit after RS active', None)
             result['rs'].append({
                 'name':    m.group(1),
                 'ip':      m.group(2),
@@ -284,9 +285,9 @@ class APVSetup:
                 'metrics': metrics,
             })
 
-        # ── 解析 VS 區塊 ──────────────────────────────────────────────────────
-        # 標頭格式：<protocol> virtual service "<name>" (<ip> <port>) <state>
-        # 範例：tcp virtual service "tcp_slb_vs" (10.10.11.101 6769) UP
+        # ── Parse VS Blocks ──────────────────────────────────────────────────────────
+        # Header format: <protocol> virtual service "<name>" (<ip> <port>) <state>
+        # Example: tcp virtual service "tcp_slb_vs" (10.10.11.101 6769) UP
         vs_header = re.compile(
             r'^\s*\w+\s+virtual service\s+"([^"]+)"\s+\(([\d.]+)\s+(\d+)\)\s+(\S+)',
             re.MULTILINE
@@ -311,16 +312,16 @@ class APVSetup:
 
     @staticmethod
     def _parse_kv_block(text: str) -> dict:
-        """從一段文字中提取所有 'Key: value [unit]' 對，回傳 dict。"""
+        """Extract all 'Key: value [unit]' pairs from a block of text and return dict."""
         metrics = {}
         for line in text.splitlines():
-            # 匹配 "    Some Key Label:   123" 或 "    Key:  0.000 ms"
+            # Match "    Some Key Label:   123" or "    Key:  0.000 ms"
             m = re.match(r'^\s+(.+?):\s+(.+?)\s*$', line)
             if not m:
                 continue
             key = m.group(1).strip()
             val = m.group(2).strip()
-            # 嘗試轉數值（移除單位 bps/pps/ms）
+            # Try to convert to numeric (remove units bps/pps/ms)
             num_match = re.match(r'^([\d.]+)\s*(?:bps|pps|ms)?$', val)
             if num_match:
                 raw_num = num_match.group(1)
@@ -329,9 +330,9 @@ class APVSetup:
                 metrics[key] = val
         return metrics
 
-    # 指標單位對照表
+    # Metric unit mapping table
     _SLB_METRIC_UNITS = {
-        # 連線數 / 請求數
+        # Connection count / Requests
         'Max Conn Count':             'count',
         'Max Connection Count':       'count',
         'Current Connection Count':   'count',
@@ -339,22 +340,22 @@ class APVSetup:
         'Outstanding Request Count':  'count',
         'Total Hits':                 'count',
         'Total Connection Count':     'count',
-        # 流量（位元組）
+        # Traffic (bytes)
         'Total Bytes In':             'bytes',
         'Total Bytes Out':            'bytes',
-        # 封包數
+        # Packet count
         'Total Packets In':           'packet',
         'Total Packets Out':          'packet',
-        # 頻寬
+        # Bandwidth
         'Average Bandwidth In':       'bps',
         'Average Bandwidth Out':      'bps',
-        # 封包速率
+        # Packet rate
         'Average Packets In Rate':    'pps',
         'Average Packets Out Rate':   'pps',
-        # 延遲
+        # Latency
         'Average Response time':      'ms',
         'Average client connection RTT': 'ms',
-        # QoS / Policy 命中數
+        # QoS / Policy hits
         'qos clientport hits':        'count',
         'qos network hits':           'count',
         'default hits':               'count',
@@ -364,10 +365,10 @@ class APVSetup:
     }
 
     def resolvePortNames(self) -> None:
-        """執行 show ip address，解析 APV port name，填入每個 pair 的 apv_client_port / apv_server_port。
+        """Run 'show ip address' to parse APV port name and fill apv_client_port / apv_server_port for each pair.
 
-        使用 execute_in_session（enable 模式），不需要額外 connect/disconnect。
-        找不到對應 IP 時填入 'unknown'。
+        Use execute_in_session (enable mode), no need for additional connect/disconnect.
+        Fill 'unknown' if corresponding IP not found.
         """
         shell = self.ssh_apv._executor
         assert shell is not None, "APV SSH session not established; call connect() first"
@@ -377,7 +378,7 @@ class APVSetup:
         raw = shell.execute_in_session('show ip address', timeout=15)
         shell.execute_in_session('disable', timeout=10)
 
-        # 解析：ip address "portX" <ip> <mask>
+        # Parse: ip address "portX" <ip> <mask>
         clean = OutputHandler.clean_ansi(raw)
         clean = re.sub(r'\x08+', '', clean)
         ip_map: dict[str, str] = {}
@@ -391,11 +392,11 @@ class APVSetup:
             pair.apv_server_port = ip_map.get(pair.server.server_gw, 'unknown')
 
     def matchSLBStatsToPairs(self, parsed: dict) -> dict:
-        """將 parseSLBStats 回傳的 VS/RS 依名稱中的 pair_index 分組。
+        """Group VS/RS from parseSLBStats return by pair_index in their names.
 
-        回傳：{pair_index: {'vs': vs_entry_or_None, 'rs': rs_entry_or_None}}
-        VS 名稱格式：{protocol}_vs_{pair_index}（如 tcp_vs_0）
-        RS 名稱格式：{protocol}_rs_{pair_index}（如 tcp_rs_0）
+        Return: {pair_index: {'vs': vs_entry_or_None, 'rs': rs_entry_or_None}}
+        VS name format: {protocol}_vs_{pair_index} (e.g., tcp_vs_0)
+        RS name format: {protocol}_rs_{pair_index} (e.g., tcp_rs_0)
         """
         per_pair = {i: {'vs': None, 'rs': None} for i in range(len(self.pairs))}
 
@@ -416,15 +417,15 @@ class APVSetup:
         return per_pair
 
     def outputSLBStats(self, parsed: dict, per_pair_slb: dict, output_path: str):
-        """將解析後的 SLB 統計資料寫入 CSV。
+        """Write parsed SLB statistics to CSV.
 
-        輸出檔案：<output_path>/apv_slb_stats.csv
-        欄位：Type, Pair, Metric, Value, Unit
+        Output file: <output_path>/apv_slb_stats.csv
+        Columns: Type, Pair, Metric, Value, Unit
         """
         os.makedirs(output_path, exist_ok=True)
         csv_path = os.path.join(output_path, 'apv_slb_stats.csv')
 
-        # 建立 identifier → pair_label 反向查找表
+        # Build reverse lookup table: identifier → pair_label
         id_to_pair: dict[str, str] = {}
         for pair_idx, slb in per_pair_slb.items():
             for kind in ('vs', 'rs'):
@@ -454,10 +455,10 @@ class APVSetup:
             writer.writerow(['Type', 'Pair', 'Metric', 'Value', 'Unit'])
             writer.writerows(rows)
 
-        print(f"[APVSetup] SLB 統計資料已輸出至 {csv_path}")
+        print(f"[APVSetup] SLB statistics output to {csv_path}")
 
     def collectAndProcessSLBStats(self, output_path: str) -> None:
-        """收集、解析、分組並輸出 SLB 統計資料，結果存入 self.per_pair_slb。"""
+        """Collect, parse, group and output SLB statistics, store result in self.per_pair_slb."""
         raw = self.collectSLBStats()
         parsed = self.parseSLBStats(raw)
         self.per_pair_slb = self.matchSLBStatsToPairs(parsed)
