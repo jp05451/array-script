@@ -3,20 +3,16 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## output
-All outputs must use traditional Chinese
+All llm output must use traditional Chinese
+All print and comment must use English
 
-## Running Tests
+## Setup
 
 ```bash
-# Run all unit tests (uses unittest + mocks, no SSH required)
-python test_dperf.py
-
-# Run a specific test class
-python -m unittest test_dperf.TestDperfParseOutput -v
-
-# Other test files (also mock-based, no SSH)
-python test_config.py
-python test_redisdb.py
+# Install dependencies (uses uv or pip)
+uv sync          # preferred, uses uv.lock
+# or
+pip install -r requirements.txt
 ```
 
 ## Running the Main Script
@@ -26,11 +22,13 @@ python test_redisdb.py
 python main.py -c config.yaml
 
 # Key CLI overrides
-python main.py -c config.yaml -d 40s -p 1024 --sessions 2k
+python main.py -c config.yaml -d 40s -p 1024 --sessions 2k --packet-interval 1000us
 python main.py --dry-run          # Skip actual dperf traffic, test setup/teardown only
 python main.py --enable-redis     # Persist monitoring data to Redis
 python main.py -o ./results --log ./logs
 ```
+
+CLI arg → config field mapping: `-d` → `duration`, `-p`/`--packet-size` → `pair.payload_size`, `--sessions` → `pair.client.cc`, `--packet-interval` → `pair.server.keepalive` + `pair.client.keepalive`.
 
 Available protocol configs: `config.yaml` (TCP). Additional configs follow the same schema.
 
@@ -45,8 +43,8 @@ The system automates DPerf network performance tests against an Array Networks A
 3. **TrafficGenerator.setup_env** — Binds NICs to DPDK (`vfio-pci`), sets hugepages, uploads dperf conf files.
 4. **TrafficGenerator.run_test** — Starts `SystemMonitor`, runs `dperf.runPairTest()` per pair (parallel threads), calls `outputSummaryReport()` on completion.
 5. **TrafficGenerator.clearEnv** — Unbinds NICs, clears hugepages.
-6. **APVSetup.collectSLBStats** — Reconnects APV, runs `show statistics slb all`, handles `--More--` pagination.
-7. **APVSetup.parseSLBStats / matchSLBStatsToPairs / outputSLBStats** — Parses VS/RS blocks, matches to pairs by name regex (`_vs_(\d+)$`), writes `apv_slb_stats.csv`.
+6. **SystemMonitor (SLBStatsMonitor thread)** — Collects `show statistics slb all` once near test end (10 s before expected finish) via its own dedicated SSH executor. Raw output stored in `monitor._slb_stats_raw`.
+7. **APVSetup.parseSLBStats / matchSLBStatsToPairs / outputSLBStats** — Called in `main.py` using `tg.monitor.get_slb_stats_raw()[0]['raw_output']`. Parses VS/RS blocks, matches to pairs by name regex (`_vs_(\d+)$`), writes `apv_slb_stats.csv`.
 8. **TrafficGenerator.appendSLBStats** — Appends SLB section to per-pair CSVs and `dperf_summary.csv`.
 9. **TrafficGenerator.printFormattedSummary** — Prints vendor-spec formatted console output (global totals + per-pair detail + VS/RS metrics).
 
@@ -101,7 +99,12 @@ SLB VS/RS naming must follow `{protocol}_vs_{pair_index}` / `{protocol}_rs_{pair
 
 ### `SystemMonitor` (system_monitor.py)
 
-Two threads: main thread polls `top` + `free -m` on TG host every 1s; APV daemon thread polls `show statistics cpu` every 3s. APV monitoring requires all four `apv_*` credential fields in config.
+Three threads:
+- **Main thread** — polls `top` + `free -m` on TG host every 1s; writes `system_monitor.csv` in real-time.
+- **APVMonitor daemon** — polls `show statistics cpu` every 1s; shares latest value with main thread via `_apv_latest_cpu_lock`.
+- **SLBStatsMonitor daemon** — uses a **third dedicated SSH connection** (`_slb_executor`) that connects lazily (10 s before test end) to avoid idle-timeout disconnection. Runs `show statistics slb all` once and stores raw output in `_slb_stats_raw`. Handles `--More--` pagination.
+
+APV monitoring requires `apv_management_ip`, `apv_username`, `apv_password` in config. `apv_enable_password` is optional. `get_slb_stats_raw()` returns the collected SLB samples for post-test parsing.
 
 ### `Config` (config.py)
 
@@ -130,3 +133,16 @@ Requires Python 3.10+ (uses `X | Y` union type syntax). Dependencies: `paramiko`
 
 - `scan_functions.py` — AST-scans all `.py` files and can update README with class/function listings.
 - `show_nic_info.py` — SSH helper to display NIC/PCI info on remote TG host.
+- `output_handler.py` — `OutputHandler` wraps print/log-file writes and exposes `clean_ansi(text)` as a static method used throughout for stripping ANSI escape sequences before parsing SSH output.
+
+## Running Tests
+
+```bash
+python test_dperf.py          # dperf parsing + metrics
+python test_config.py         # Config dataclass loading
+python test_redisdb.py        # RedisHandler (mocked)
+python test_ssh.py            # SSHExecutor (mocked)
+
+# Run a specific test class
+python -m unittest test_dperf.TestDperfParseOutput -v
+```

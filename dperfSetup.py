@@ -235,8 +235,8 @@ class dperf:
         clientThread.join()
 
         print(f"[Pair {self.pair_index}] Test completed")
-        print(f"[Pair {self.pair_index}] Server output: {self.serverOutput}")
-        print(f"[Pair {self.pair_index}] Client output: {self.clientOutput}")
+        # print(f"[Pair {self.pair_index}] Server output: {self.serverOutput}")
+        # print(f"[Pair {self.pair_index}] Client output: {self.clientOutput}")
 
         self.outputResults()
 
@@ -340,13 +340,13 @@ class dperf:
         }
 
         tg = self.config.test.traffic_generator
-        # avg 吞吐量用整段測試時間（duration + server_buffer + client_buffer）
+        # avg throughput uses total test time (duration + server_buffer + client_buffer)
         total_seconds = (
             self._parse_time_to_seconds(tg.duration) +
             self._parse_time_to_seconds(getattr(tg, 'server_buffer_time', '0s')) +
             self._parse_time_to_seconds(getattr(tg, 'client_buffer_time', '0s'))
         )
-        # avg CPS 只用純測試 duration（連線在測試窗口內建立）
+        # avg CPS uses pure test duration only (connections established within test window)
         duration_seconds = self._parse_time_to_seconds(tg.duration)
 
         server_ps = self.serverPerSecond
@@ -380,67 +380,67 @@ class dperf:
         self.serverDerived = server_derived
         self.clientDerived = client_derived
 
-        with open(self.outputPath, 'w') as f:
+        # with open(self.outputPath, 'w') as f:
 
-            # Write CSV
-            writer = csv.writer(f)
+        #     # Write CSV
+        #     writer = csv.writer(f)
 
-            # Write header row
-            writer.writerow(['Metric', 'Server', 'Client', 'Unit'])
+        #     # Write header row
+        #     writer.writerow(['Metric', 'Server', 'Client', 'Unit'])
 
-            # Test configuration metadata
-            writer.writerow(['protocol',
-                             self.pair.protocol,
-                             self.pair.protocol,
-                             ''])
-            writer.writerow(['pci_address',
-                             self.pair.server.server_nic_pci,
-                             self.pair.client.client_nic_pci,
-                             ''])
-            writer.writerow(['apv_port',
-                             self.pair.apv_server_port,
-                             self.pair.apv_client_port,
-                             ''])
-            writer.writerow(['session',
-                             self.pair.client.cc,
-                             self.pair.client.cc,
-                             'count'])
-            writer.writerow(['duration',
-                             self.config.test.traffic_generator.duration,
-                             self.config.test.traffic_generator.duration,
-                             's'])
+        #     # Test configuration metadata
+        #     writer.writerow(['protocol',
+        #                      self.pair.protocol,
+        #                      self.pair.protocol,
+        #                      ''])
+        #     writer.writerow(['pci_address',
+        #                      self.pair.server.server_nic_pci,
+        #                      self.pair.client.client_nic_pci,
+        #                      ''])
+        #     writer.writerow(['apv_port',
+        #                      self.pair.apv_server_port,
+        #                      self.pair.apv_client_port,
+        #                      ''])
+        #     writer.writerow(['session',
+        #                      self.pair.client.cc,
+        #                      self.pair.client.cc,
+        #                      'count'])
+        #     writer.writerow(['duration',
+        #                      self.config.test.traffic_generator.duration,
+        #                      self.config.test.traffic_generator.duration,
+        #                      's'])
 
-            # Get all possible keys
-            all_keys = set()
-            if server_data:
-                all_keys.update(server_data.keys())
-            if client_data:
-                all_keys.update(client_data.keys())
+        #     # Get all possible keys
+        #     all_keys = set()
+        #     if server_data:
+        #         all_keys.update(server_data.keys())
+        #     if client_data:
+        #         all_keys.update(client_data.keys())
 
-            # Write data for each metric
-            for key in sorted(all_keys):
-                server_value = server_data.get(key, 'N/A') if server_data else 'N/A'
-                client_value = client_data.get(key, 'N/A') if client_data else 'N/A'
-                unit = METRIC_UNITS.get(key, '')
-                writer.writerow([key, server_value, client_value, unit])
+        #     # Write data for each metric
+        #     for key in sorted(all_keys):
+        #         server_value = server_data.get(key, 'N/A') if server_data else 'N/A'
+        #         client_value = client_data.get(key, 'N/A') if client_data else 'N/A'
+        #         unit = METRIC_UNITS.get(key, '')
+        #         writer.writerow([key, server_value, client_value, unit])
 
-            # Write computed derived metrics
-            DERIVED_UNITS = {
-                'avg_throughput_gbps': 'Gbps',
-                'max_throughput_gbps': 'Gbps',
-                'avg_throughput_pps':  'pps',
-                'max_throughput_pps':  'pps',
-                'avg_cps':             'cps',
-                'max_cps':             'cps',
-                'max_cc':              'count',
-            }
-            for metric, unit in DERIVED_UNITS.items():
-                writer.writerow([
-                    metric,
-                    server_derived.get(metric, 'N/A'),
-                    client_derived.get(metric, 'N/A'),
-                    unit,
-                ])
+        #     # Write computed derived metrics
+        #     DERIVED_UNITS = {
+        #         'avg_throughput_gbps': 'Gbps',
+        #         'max_throughput_gbps': 'Gbps',
+        #         'avg_throughput_pps':  'pps',
+        #         'max_throughput_pps':  'pps',
+        #         'avg_cps':             'cps',
+        #         'max_cps':             'cps',
+        #         'max_cc':              'count',
+        #     }
+        #     for metric, unit in DERIVED_UNITS.items():
+        #         writer.writerow([
+        #             metric,
+        #             server_derived.get(metric, 'N/A'),
+        #             client_derived.get(metric, 'N/A'),
+        #             unit,
+        #         ])
 
 
         print(f"[Pair {self.pair_index}] Test results have been exported to {self.outputPath}")
@@ -545,18 +545,18 @@ class dperf:
     
 
     def parsePerSecondData(self, log):
-        """解析 log 中每秒區塊資料，回傳 list of dict（不含 Total Numbers 之後的資料）"""
+        """Parse per-second block data from log, return list of dict (excluding data after Total Numbers)"""
         raw = log[0]
         ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
         raw = ansi_escape.sub('', raw)
 
-        # 只取 Total Numbers 之前的部分
+        # Keep only the portion before Total Numbers
         total_idx = raw.find("Total Numbers")
         if total_idx != -1:
             raw = raw[:total_idx]
 
         per_second = []
-        # 找每個 "seconds X" 區塊的起始位置
+        # Find the starting position of each "seconds X" block
         block_starts = [m.start() for m in re.finditer(r'(?m)^seconds\s+\d+', raw)]
 
         for i, start in enumerate(block_starts):
