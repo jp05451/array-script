@@ -29,8 +29,14 @@ class SSHConnectionManager:
         self.password = password
         self._client: Optional[paramiko.SSHClient] = None
 
-    def connect(self) -> None:
-        """Establish SSH connection"""
+    def connect(self, keepalive_interval: int = 0) -> None:
+        """Establish SSH connection
+
+        Args:
+            keepalive_interval: Seconds between SSH keepalive packets.
+                0 (default) disables keepalive.  Set to e.g. 30 for
+                long-idle sessions that may be dropped by the remote host.
+        """
         self._client = paramiko.SSHClient()
         self._client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
@@ -42,6 +48,11 @@ class SSHConnectionManager:
             username=self.user,
             password=self.password,
         )
+
+        if keepalive_interval > 0:
+            transport = self._client.get_transport()
+            if transport:
+                transport.set_keepalive(keepalive_interval)
 
         print("Connection successful!")
 
@@ -351,14 +362,18 @@ class SSHExecutor:
         self._executor: Optional[CommandExecutor] = None
         self.persistent_session: bool = True
 
-    def connect(self, persistent_session: bool = False) -> None:
+    def connect(self, persistent_session: bool = False, keepalive_interval: int = 0) -> None:
         """
         Establish SSH connection
 
         Args:
-            persistent_session: Whether to enable persistent session to maintain state (e.g., directory, environment variables) between commands
+            persistent_session: Whether to enable persistent session to maintain state
+                (e.g., directory, environment variables) between commands.
+            keepalive_interval: Seconds between SSH keepalive packets.
+                0 (default) disables keepalive.  Set to e.g. 30 for
+                long-idle sessions that may be dropped by the remote host.
         """
-        self.connection_manager.connect()
+        self.connection_manager.connect(keepalive_interval=keepalive_interval)
         self._executor = CommandExecutor(
             self.connection_manager.get_client(), self.output_handler
         )
@@ -413,6 +428,7 @@ class SSHExecutor:
         Returns:
             (output, error, exit_status) tuple, returns None on error
         """
+        assert self._executor is not None, "SSH connection not established"
         if self.persistent_session:
             output = self._executor.execute_in_session(command)
             self.output_handler.print_output(output)
