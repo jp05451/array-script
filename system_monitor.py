@@ -155,19 +155,17 @@ class SystemMonitor:
         A third daemon thread sleeps until 10 s before expected test end,
         then executes ``show statistics slb all`` once and exits.
 
-        CSV output is written in real-time to:
-            <output_path>/system_monitor.csv
+        Monitoring data is collected in-memory; call outputMonitorResult() after
+        stop() to write all CSV files.
         """
         if self.monitoring:
             print("[SystemMonitor] Monitoring is already in progress")
             return
 
         self.monitoring = True
-        csv_path = os.path.join(self._output_path, "system_monitor.csv")
 
         self._monitor_thread = Thread(
             target=self._monitor_loop,
-            args=(csv_path,),
             name="SystemMonitor",
         )
         self._monitor_thread.start()
@@ -249,11 +247,20 @@ class SystemMonitor:
         return self._per_pair_slb
 
     def outputMonitorResult(self) -> None:
-        """Write SLB statistics to apv_slb_stats.csv.
+        """Write system_monitor.csv and apv_slb_stats.csv from collected data.
 
-        Must be called after stop() to ensure _do_slb_collection has completed.
-        Silently returns if no SLB data was collected.
+        Must be called after stop() to ensure all data has been collected.
+        system_monitor.csv is always written (empty if no data).
+        apv_slb_stats.csv is skipped when no SLB data was collected.
         """
+        # Write system_monitor.csv from in-memory data
+        csv_path = os.path.join(self._output_path, "system_monitor.csv")
+        self._write_csv_header(csv_path)
+        for data_point in self.monitor_data:
+            self._append_csv_row(csv_path, data_point)
+        print(f"[SystemMonitor] Monitoring data saved to {csv_path}")
+
+        # Write apv_slb_stats.csv if we have per-pair SLB data
         if not self._per_pair_slb:
             return
         parsed = self._slb_stats_raw[0].get('parsed') if self._slb_stats_raw else None
@@ -631,19 +638,14 @@ class SystemMonitor:
     # Main Monitor Loop
     # -------------------------------------------------------------------------
 
-    def _monitor_loop(self, csv_path: str):
+    def _monitor_loop(self):
         """Main monitoring loop — polls TG and APV metrics every second.
 
-        Writes CSV rows in real-time so data is not lost if the process is
-        interrupted.  Also appends each data point to self.monitor_data for
-        in-memory access after the test.
-
-        Args:
-            csv_path: Absolute path to the output CSV file.
+        Collects data points into self.monitor_data for later output.
+        Call outputMonitorResult() after stop() to write the CSV.
         """
         self.monitor_data = []
         print("[SystemMonitor] Starting monitoring...")
-        self._write_csv_header(csv_path)
 
         while self.monitoring:
             try:
@@ -666,7 +668,6 @@ class SystemMonitor:
                     data_point['apv_cpu_usage'] = round(apv_raw, 2) if apv_raw is not None else None
 
                 self.monitor_data.append(data_point)
-                self._append_csv_row(csv_path, data_point)
                 self._save_to_redis(data_point)
 
                 time.sleep(1)
@@ -675,4 +676,4 @@ class SystemMonitor:
                 print(f"[SystemMonitor] Monitoring error: {e}")
                 time.sleep(1)
 
-        print(f"[SystemMonitor] Monitoring stopped, data saved to {csv_path}")
+        print("[SystemMonitor] Monitoring stopped")
