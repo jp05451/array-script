@@ -1,6 +1,5 @@
 import argparse
 from config import Config
-from APVSetup import APVSetup
 from trafficGenerator import TrafficGenerator
 from time import sleep
 
@@ -111,13 +110,6 @@ def main():
     dryRun=args.dry_run
     print(f"Dry run mode: {dryRun}")
 
-    apv=APVSetup(config,log_path=args.log)
-    if not dryRun:
-        apv.connect()
-        apv.clearEnv()
-        apv.setupEnv(dry_run=dryRun)
-        apv.resolvePortNames()
-
     # Create TrafficGenerator
     tg = TrafficGenerator(
         config=config,
@@ -139,23 +131,11 @@ def main():
 
     finally:
         if not dryRun:
-            raw_slb = tg.monitor.get_slb_stats_raw()
-            if raw_slb:
-                try:
-                    raw_output = raw_slb[0]['raw_output']
-                    parsed = APVSetup.parseSLBStats(raw_output)
-                    apv.per_pair_slb = apv.matchSLBStatsToPairs(parsed)
-                    apv.outputSLBStats(parsed, apv.per_pair_slb, args.output)
-                    tg.appendSLBStats(apv.per_pair_slb)
-                except Exception as e:
-                    print(f"[APVSetup] fail to parse SLB stats: {e}")
-                    
+            tg.processSLBStats()
             tg.clearEnv()
             tg.disconnect()
-            apv.clearEnv()
-            apv.disconnect()
             print("================================================================")
-            tg.printFormattedSummary(apv.per_pair_slb)
+            tg.printFormattedSummary()
 
 if __name__ == "__main__":
     main()

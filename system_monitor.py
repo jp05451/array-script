@@ -97,6 +97,21 @@ class SystemMonitor:
                 log_path=os.path.join(self._log_path, "system_monitor_apv.log"),
             )
 
+        # SLB stats executor — dedicated third SSH connection for SLB stats collection
+        self._slb_executor: SSHExecutor | None = None
+        self._slb_enable_password: str | None = config.test.apv_enable_password or None
+        self._slb_stats_thread: Thread | None = None
+        self._slb_stats_raw: list[dict] = []   # [{timestamp, raw_output, parsed}, ...]
+        self._per_pair_slb: dict = {}           # {pair_index: {'vs': ..., 'rs': ...}}
+        if self.apv_enabled:
+            self._slb_executor = SSHExecutor(
+                config.test.apv_management_ip,
+                config.test.apv_management_port or 22,
+                config.test.apv_username,
+                config.test.apv_password,
+                log_path=os.path.join(self._log_path, "system_monitor_slb.log"),
+            )
+
         # Redis (reserved for future expansion)
         self._enable_redis = enable_redis
         self._redis_handler: RedisHandler | None = None
@@ -113,12 +128,18 @@ class SystemMonitor:
         if self.apv_enabled and self._apv_executor:
             self._apv_executor.connect(persistent_session=True)
             self._enter_apv_enable_mode()
+        if self.apv_enabled and self._slb_executor:
+            self._slb_executor.connect(persistent_session=True, keepalive_interval=30)
+            self._enter_slb_enable_mode()
+
 
     def disconnect(self):
         """Disconnect all SSH sessions and close Redis connection."""
         self._tg_executor.close()
         if self.apv_enabled and self._apv_executor:
             self._apv_executor.close()
+        if self.apv_enabled and self._slb_executor:
+            self._slb_executor.close()
         self._close_redis()
 
     # -------------------------------------------------------------------------
@@ -130,8 +151,9 @@ class SystemMonitor:
 
         The main monitoring loop polls Traffic Generator CPU and memory every
         second.  When APV monitoring is enabled, a separate daemon thread polls
-        the APV every 3 seconds (APV CLI is slow) and shares the latest value
-        with the main loop.
+        the APV every second and shares the latest value with the main loop.
+        A third daemon thread sleeps until 10 s before expected test end,
+        then executes ``show statistics slb all`` once and exits.
 
         CSV output is written in real-time to:
             <output_path>/system_monitor.csv
@@ -158,6 +180,14 @@ class SystemMonitor:
             )
             self._apv_thread.start()
 
+        if self.apv_enabled and self._slb_executor:
+            self._slb_stats_thread = Thread(
+                target=self._slb_stats_monitor_loop,
+                name="SLBStatsMonitor",
+                daemon=True,
+            )
+            self._slb_stats_thread.start()
+
     def stop(self):
         """Stop all monitoring threads and wait for them to finish."""
         self.monitoring = False
@@ -172,6 +202,11 @@ class SystemMonitor:
             # APV thread is daemon=True and checks self.monitoring — wait up to
             # one full APV poll cycle (30 s command timeout + 3 s sleep)
             self._apv_thread.join(timeout=35)
+
+        if self._slb_stats_thread and self._slb_stats_thread.is_alive():
+            self._slb_stats_thread.join(timeout=5)
+            if self._slb_stats_thread.is_alive():
+                print("[SystemMonitor] Warning: SLB stats thread failed to exit properly")
 
     def is_monitoring(self) -> bool:
         """Return True if monitoring is currently active."""
@@ -193,6 +228,70 @@ class SystemMonitor:
         Returns an empty list when APV monitoring is disabled.
         """
         return self._apv_data
+
+    def get_slb_stats_raw(self) -> list[dict]:
+        """Return all periodic SLB stats samples collected during the test.
+
+        Each entry is a dict with keys:
+            timestamp (str): Collection time as 'YYYY-MM-DD HH:MM:SS'.
+            raw_output (str): Raw output of ``show statistics slb all``.
+
+        Pass raw_output to ``APVSetup.parseSLBStats()`` to parse into VS/RS dicts.
+        Returns an empty list when APV monitoring is disabled or no samples were collected.
+        """
+        return self._slb_stats_raw
+
+    def get_per_pair_slb(self) -> dict:
+        """Return per-pair SLB statistics matched by _do_slb_collection.
+
+        Returns an empty dict when APV monitoring is disabled or no samples were collected.
+        """
+        return self._per_pair_slb
+
+    def outputMonitorResult(self) -> None:
+        """Write SLB statistics to apv_slb_stats.csv.
+
+        Must be called after stop() to ensure _do_slb_collection has completed.
+        Silently returns if no SLB data was collected.
+        """
+        if not self._per_pair_slb:
+            return
+        parsed = self._slb_stats_raw[0].get('parsed') if self._slb_stats_raw else None
+        if parsed is None:
+            return
+        from APVSetup import APVSetup as _APV
+        os.makedirs(self._output_path, exist_ok=True)
+        csv_path = os.path.join(self._output_path, 'apv_slb_stats.csv')
+
+        # 建立 identifier → pair_label 反向查找表
+        id_to_pair: dict[str, str] = {}
+        for pair_idx, slb in self._per_pair_slb.items():
+            for kind in ('vs', 'rs'):
+                entry = slb.get(kind)
+                if entry:
+                    idf = f"{entry['name']} ({entry['ip']}:{entry['port']}) [{entry['status']}]"
+                    id_to_pair[idf] = f'pair_{pair_idx}'
+
+        rows = []
+        for vs in parsed.get('vs', []):
+            identifier = f"{vs['name']} ({vs['ip']}:{vs['port']}) [{vs['status']}]"
+            pair_label = id_to_pair.get(identifier, '-')
+            for metric, value in vs['metrics'].items():
+                unit = _APV._SLB_METRIC_UNITS.get(metric, '')
+                rows.append(['VS', pair_label, metric, value, unit])
+        for rs in parsed.get('rs', []):
+            identifier = f"{rs['name']} ({rs['ip']}:{rs['port']}) [{rs['status']}]"
+            pair_label = id_to_pair.get(identifier, '-')
+            for metric, value in rs['metrics'].items():
+                unit = _APV._SLB_METRIC_UNITS.get(metric, '')
+                rows.append(['RS', pair_label, metric, value, unit])
+
+        with open(csv_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Type', 'Pair', 'Metric', 'Value', 'Unit'])
+            writer.writerows(rows)
+
+        print(f"[SystemMonitor] SLB 統計資料已輸出至 {csv_path}")
 
     # -------------------------------------------------------------------------
     # Traffic Generator Metrics Collection
@@ -266,12 +365,28 @@ class SystemMonitor:
         execute_in_session times out then returns; we send the password next.
         """
         assert self._apv_executor is not None
-        shell = self._apv_executor._executor
+        shell = self._apv_executor
         assert shell is not None, "APV SSH session not established; call connect() first"
         print("[APVMonitor] Entering enable mode...")
-        shell.execute_in_session('enable', timeout=15)
-        shell.execute_in_session(self._apv_enable_password or '', timeout=15)
+        shell.execute_command('enable')
+        shell.execute_command(self._apv_enable_password or '')
         print("[APVMonitor] Enable mode entered")
+
+    def _enter_slb_enable_mode(self):
+        """Enter APV privileged (enable) mode for the dedicated SLB stats session.
+
+        Identical flow to _enter_apv_enable_mode but uses _slb_executor.
+        Enable mode is entered once at connect() time and held for the duration
+        of the test so each _do_slb_collection() call does not need to re-authenticate.
+        """
+        shell = self._slb_executor
+        assert shell is not None, "SLB SSH session not established; call connect() first"
+        print("[SLBStatsMonitor] Entering enable mode...")
+        
+        shell.execute_command('enable')
+        shell.execute_command(self._slb_enable_password or '')
+        shell.execute_command('no pager')
+        print("[SLBStatsMonitor] Enable mode entered")
 
     def _parse_apv_cpu(self, output: str) -> float | None:
         """Parse CPU usage from APV 'show statistics cpu' output.
@@ -290,6 +405,73 @@ class SystemMonitor:
         match = re.search(r'CPU\s+Utilization\s+(\d+(?:\.\d+)?)\s*%', cleaned, re.IGNORECASE)
         return float(match.group(1)) if match else None
 
+    def _do_slb_collection(self) -> None:
+        """Execute ``show statistics slb all`` once; parse, match, and store results.
+
+        The SLB session must already be connected and in enable mode.
+        Pagination is suppressed by ``no pager`` issued in _enter_slb_enable_mode.
+        Stores parsed stats in _slb_stats_raw and matched per-pair result in
+        _per_pair_slb.  Does NOT write any CSV — call outputMonitorResult() instead.
+        """
+        assert self._slb_executor is not None
+        shell = self._slb_executor
+        try:
+            ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            print(f"[SLBStatsMonitor] Collecting SLB stats... {ts}")
+            result = shell.execute_command('show statistics slb all')
+            full_output = result[0] if result else ''
+            ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+            # Parse raw output (APVSetup.parseSLBStats is a pure static method)
+            from APVSetup import APVSetup as _APV
+            parsed = _APV.parseSLBStats(full_output)
+
+            # Match VS/RS to pairs inline (naming convention: {protocol}_vs_{idx})
+            pairs = self._config.test.traffic_generator.pairs
+            per_pair_slb = {i: {'vs': None, 'rs': None} for i in range(len(pairs))}
+            for vs in parsed.get('vs', []):
+                m = re.search(r'_vs_(\d+)$', vs['name'])
+                if m:
+                    idx = int(m.group(1))
+                    if idx in per_pair_slb:
+                        per_pair_slb[idx]['vs'] = vs
+            for rs in parsed.get('rs', []):
+                m = re.search(r'_rs_(\d+)$', rs['name'])
+                if m:
+                    idx = int(m.group(1))
+                    if idx in per_pair_slb:
+                        per_pair_slb[idx]['rs'] = rs
+
+            self._slb_stats_raw.append({'timestamp': ts, 'raw_output': full_output, 'parsed': parsed})
+            self._per_pair_slb = per_pair_slb
+            print(f"[SLBStatsMonitor] Collected SLB stats at {ts}")
+        except Exception as e:
+            print(f"[SLBStatsMonitor] Error collecting SLB stats: {e}")
+
+    def _slb_stats_monitor_loop(self) -> None:
+        """Background daemon: waits until 10 s before test end, then samples once.
+
+        The SLB SSH session is already connected and in enable mode (established
+        in connect()).  This thread calculates the expected test duration from
+        config, sleeps until 10 s before expected end, then calls
+        _do_slb_collection() if monitoring is still active.
+        """
+        from dperfSetup import dperf as _dperf
+        tg = self._config.test.traffic_generator
+        total_seconds = (
+            _dperf._parse_time_to_seconds(tg.duration) +
+            _dperf._parse_time_to_seconds(tg.server_buffer_time) +
+            _dperf._parse_time_to_seconds(tg.client_buffer_time)
+        )
+        wait_seconds = max(total_seconds - 10, 0)
+        print(f"[SLBStatsMonitor] 總時長 {total_seconds:.0f}s，將在 {wait_seconds:.0f}s 後採樣")
+        time.sleep(wait_seconds)
+        if not self.monitoring:
+            print("[SLBStatsMonitor] 監控已停止，跳過採樣")
+            return
+        self._do_slb_collection()
+        print("[SLBStatsMonitor] 採樣完成，執行緒結束")
+
     def _apv_monitor_loop(self):
         """APV CPU polling loop running in a dedicated daemon thread.
 
@@ -298,15 +480,15 @@ class SystemMonitor:
         monitor loop to read.
         """
         assert self._apv_executor is not None
-        shell = self._apv_executor._executor
+        shell = self._apv_executor
         assert shell is not None, "APV SSH session not established; call connect() first"
         print("[APVMonitor] Starting APV CPU monitoring...")
         while self.monitoring:
             try:
-                output = shell.execute_in_session(
-                    'show statistics cpu', timeout=30
+                output = shell.execute_command(
+                    'show statistics cpu'
                 )
-                cpu = self._parse_apv_cpu(output)
+                cpu = self._parse_apv_cpu(output[0] if output else '')
                 if cpu is not None:
                     # Update shared latest value (lock protects concurrent read in main loop)
                     with self._apv_latest_cpu_lock:

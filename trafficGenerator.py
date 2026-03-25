@@ -37,6 +37,9 @@ class TrafficGenerator:
         self.redis_db = redis_db
         self.enable_redis = enable_redis
 
+        # APVSetup instance (managed internally)
+        self.apv = APVSetup(config, log_path=log_path)
+
         # Get pair count
         self.pair_count = len(config.test.traffic_generator.pairs)
         print(f"[TrafficGenerator] Detected {self.pair_count} pair(s)")
@@ -69,8 +72,12 @@ class TrafficGenerator:
             print(f"[TrafficGenerator] Pair {i} established")
 
     def connect(self):
-        """Connect to remote host (includes monitor and all pairs)"""
+        """Connect to remote host (includes APV, monitor and all pairs)"""
         print("[TrafficGenerator] Starting connection...")
+
+        # Connect APV
+        self.apv.connect()
+        print("[TrafficGenerator] APV connected")
 
         # Connect monitor
         self.monitor.connect()
@@ -96,6 +103,10 @@ class TrafficGenerator:
         self.monitor.disconnect()
         print("[TrafficGenerator] Monitor disconnected")
 
+        # Disconnect APV
+        self.apv.disconnect()
+        print("[TrafficGenerator] APV disconnected")
+
         print("[TrafficGenerator] All connections disconnected")
 
     def setup_env(self, pair_indices: list|None = None, dry_run: bool = False):
@@ -109,6 +120,12 @@ class TrafficGenerator:
             pair_indices = list(range(self.pair_count))
 
         print(f"[TrafficGenerator] Starting environment setup (Pairs: {pair_indices})...")
+
+        # APV setup: clear existing config, configure LB, resolve port names
+        if not dry_run:
+            self.apv.clearEnv()
+            self.apv.setupEnv(dry_run=dry_run)
+            self.apv.resolvePortNames()
 
         for i in pair_indices:
             if i < len(self.pairs):
@@ -140,6 +157,10 @@ class TrafficGenerator:
             else:
                 print(f"[TrafficGenerator] Warning: Pair {i} does not exist")
 
+        # APV teardown
+        if not dry_run:
+            self.apv.clearEnv()
+
         print("[TrafficGenerator] Environment clearance completed")
 
     def run_test(self, pair_indices: list|None = None, enable_monitor: bool = True,
@@ -168,6 +189,7 @@ class TrafficGenerator:
             time.sleep(2)  # Ensure monitoring is started
 
         try:
+            
             if parallel:
                 # Execute all pair tests in parallel
                 results = self._run_parallel(pair_indices, dry_run=dry_run)
@@ -175,14 +197,15 @@ class TrafficGenerator:
                 # Execute each pair test sequentially
                 results = self._run_sequential(pair_indices, dry_run=dry_run)
         finally:
-            # Stop monitoring
             if enable_monitor and not dry_run:
                 self.monitor.stop()
+                self.monitor.outputMonitorResult()
 
         # Add monitoring data to results
         results['monitor_data'] = self.monitor.get_data() if not dry_run else []
+        results['slb_stats_raw'] = self.monitor.get_slb_stats_raw() if not dry_run else []
 
-        # 產生跨 pair 彙總報告
+        # Generate cross-pair summary report
         if not dry_run:
             self.outputSummaryReport(self.output_path)
 
@@ -221,7 +244,7 @@ class TrafficGenerator:
         """
         results = {}
         threads = []
-
+        print("[TrafficGenerator] Executing tests in parallel for pairs: {pair_indices}...")
         def run_pair(pair_index):
             if pair_index < len(self.pairs):
                 result = self.pairs[pair_index].runPairTest(dry_run=dry_run)
@@ -236,12 +259,14 @@ class TrafficGenerator:
         # Wait for all threads to complete
         for t in threads:
             t.join()
+        
+        print("[TrafficGenerator] =============== All parallel tests completed=============")
 
         return results
 
     @staticmethod
     def _parse_cc(cc_str: str) -> int:
-        """將 '2k'、'1m'、'500' 等 cc 字串轉換為整數"""
+        """Convert cc strings like '2k', '1m', '500' to integers"""
         s = str(cc_str).strip().lower()
         if s.endswith('k'):
             return int(float(s[:-1]) * 1_000)
@@ -253,16 +278,16 @@ class TrafficGenerator:
             return 0
 
     def outputSummaryReport(self, output_path: str):
-        """產生跨所有 pair 的彙總 CSV（dperf_summary.csv）。
+        """Generate cross-pair summary CSV (dperf_summary.csv).
 
-        欄位格式：Metric | pair0_server | pair0_client | ... | total_server | total_client | Unit
+        Field format: Metric | pair0_server | pair0_client | ... | total_server | total_client | Unit
         """
         os.makedirs(output_path, exist_ok=True)
         out_file = os.path.join(output_path, 'dperf_summary.csv')
         n = len(self.pairs)
         tg = self.config.test.traffic_generator
 
-        # 建立 header
+        # Build header
         header = ['Metric']
         for i in range(n):
             header += [f'pair{i}_server', f'pair{i}_client']
@@ -285,7 +310,7 @@ class TrafficGenerator:
 
         rows = []
 
-        # ── 元數據 ──────────────────────────────────────────────
+        # ── Metadata ──────────────────────────────────────────────
         rows.append(make_row(
             'protocol',
             [p.pair.protocol for p in self.pairs],
@@ -314,7 +339,7 @@ class TrafficGenerator:
         total_cc = sum(self._parse_cc(cc) for cc in cc_vals)
         rows.append(make_row('session', cc_vals, cc_vals, total_cc, total_cc, 'count'))
 
-        # ── 原始指標 ─────────────────────────────────────────────
+        # ── Raw Metrics ─────────────────────────────────────────────
         METRIC_UNITS = {
             'ackDup': 'count', 'ackRt': 'count',
             'arpRx': 'packet', 'arpTx': 'packet',
@@ -349,7 +374,7 @@ class TrafficGenerator:
             cv = [p.clientOutput.get(key, 'N/A') if p.clientOutput else 'N/A' for p in self.pairs]
             rows.append(make_row(key, sv, cv, safe_sum(sv), safe_sum(cv), METRIC_UNITS.get(key, '')))
 
-        # ── 衍生指標 ─────────────────────────────────────────────
+        # ── Derived Metrics ─────────────────────────────────────────────
         DERIVED_UNITS = {
             'avg_throughput_gbps': 'Gbps',
             'max_throughput_gbps': 'Gbps',
@@ -370,16 +395,30 @@ class TrafficGenerator:
             writer.writerow(header)
             writer.writerows(rows)
 
-        print(f"[TrafficGenerator] 彙總報告已輸出至 {out_file}")
+        print(f"[TrafficGenerator] Summary is output to {out_file}")
+
+    def processSLBStats(self):
+        """Append SLB statistics collected by monitor to per-pair CSV and summary CSV.
+
+        Read data from monitor.get_per_pair_slb(), no need to pass apv object.
+        Return silently if data not yet collected.
+        """
+        per_pair = self.monitor.get_per_pair_slb()
+        if not per_pair:
+            return
+        try:
+            self.appendSLBStats(per_pair)
+        except Exception as e:
+            print(f"[TrafficGenerator] fail to append SLB stats: {e}")
 
     def appendSLBStats(self, per_pair_slb: dict):
-        """將 SLB 統計資料追加至 per-pair CSV 與 summary CSV。
+        """Append SLB statistics to per-pair CSV and summary CSV.
 
         Args:
-            per_pair_slb: matchSLBStatsToPairs() 回傳的 dict
+            per_pair_slb: dict returned by matchSLBStatsToPairs()
                           {pair_index: {'vs': entry_or_None, 'rs': entry_or_None}}
         """
-        # ── per-pair CSV 追加 ─────────────────────────────────────────────
+        # ── Append to per-pair CSV ─────────────────────────────────────────────
         for i, pair_obj in enumerate(self.pairs):
             slb = per_pair_slb.get(i, {'vs': None, 'rs': None})
             vs_entry = slb.get('vs')
@@ -406,7 +445,7 @@ class TrafficGenerator:
                         unit = APVSetup._SLB_METRIC_UNITS.get(metric, '')
                         writer.writerow([f'slb_rs_{metric}', value, '', unit])
 
-        # ── summary CSV 追加 ──────────────────────────────────────────────
+        # ── Append to summary CSV ──────────────────────────────────────────────
         summary_csv = os.path.join(self.output_path, 'dperf_summary.csv')
         if not os.path.exists(summary_csv):
             return
@@ -428,7 +467,7 @@ class TrafficGenerator:
             row += [total_s, total_c, unit]
             return row
 
-        # 蒐集所有 VS/RS metric key（保持順序）
+        # Collect all VS/RS metric keys (preserve order)
         vs_keys: list[str] = []
         rs_keys: list[str] = []
         seen_vs: set[str] = set()
@@ -471,21 +510,21 @@ class TrafficGenerator:
             # writer.writerow(header)
             writer.writerows(slb_rows)
 
-        print(f"[TrafficGenerator] SLB 統計資料已追加至 per-pair CSV 與 {summary_csv}")
+        print(f"[TrafficGenerator] SLB statistics appended to per-pair CSV and {summary_csv}")
 
-    def printFormattedSummary(self, per_pair_slb: dict):
-        """依廠商 spec 格式輸出測試摘要至 console。
+    def printFormattedSummary(self):
+        """Output test summary to console in vendor spec format.
 
-        Args:
-            per_pair_slb: matchSLBStatsToPairs() 回傳的 dict
+        SLB statistics read from monitor.get_per_pair_slb(), no parameters need to be passed.
         """
+        per_pair_slb = self.monitor.get_per_pair_slb()
         tg = self.config.test.traffic_generator
 
         def safe_sum(vals):
             nums = [v for v in vals if isinstance(v, (int, float))]
             return round(sum(nums), 6) if nums else 'N/A'
 
-        # ── 全局摘要 ──────────────────────────────────────────────
+        # ── Global Summary ──────────────────────────────────────────
         total_cc = sum(self._parse_cc(p.pair.client.cc) for p in self.pairs)
         single_cc = self.pairs[0].pair.client.cc if self.pairs else 'N/A'
 
@@ -499,7 +538,7 @@ class TrafficGenerator:
         print(f"Max Connection Per Second: {safe_sum([p.clientDerived.get('max_cps', 'N/A') for p in self.pairs])} (cps)")
         print(f"Average Connection Per Second: {safe_sum([p.clientDerived.get('avg_cps', 'N/A') for p in self.pairs])} (cps)")
 
-        # ── 每個 pair ─────────────────────────────────────────────
+        # ── Per Pair ─────────────────────────────────────────────
         print("\nPairs:")
         for i, pair_obj in enumerate(self.pairs):
             pair = pair_obj.pair
