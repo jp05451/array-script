@@ -156,10 +156,11 @@ class APVSetup:
         if dry_run:
             print(f"[APVSetup] [DRY RUN] APV: {self.apv_management_ip}:{self.apv_management_port} (user: {self.apv_username})")
         else:
-            self.ssh_apv.execute_command('enable',real_time=True)
-            self.ssh_apv.execute_command(f'{self.apv_enable_password}',real_time=True)
-            self.ssh_apv.execute_command('config terminal',real_time=True)
+            self.ssh_apv.execute_command('enable')
+            self.ssh_apv.execute_command(f'{self.apv_enable_password}')
+            self.ssh_apv.execute_command('config terminal')
 
+        self.ssh_apv.execute_command('no pager')
         for i in range(len(self.pairs)):
             protocol = self.pairs[i].protocol.lower()
             if protocol == 'udp':
