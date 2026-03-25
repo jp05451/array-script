@@ -117,7 +117,6 @@ def main():
         apv.clearEnv()
         apv.setupEnv(dry_run=dryRun)
         apv.resolvePortNames()
-        apv.disconnect()
 
     # Create TrafficGenerator
     tg = TrafficGenerator(
@@ -140,15 +139,19 @@ def main():
 
     finally:
         if not dryRun:
+            raw_slb = tg.monitor.get_slb_stats_raw()
+            if raw_slb:
+                try:
+                    raw_output = raw_slb[0]['raw_output']
+                    parsed = APVSetup.parseSLBStats(raw_output)
+                    apv.per_pair_slb = apv.matchSLBStatsToPairs(parsed)
+                    apv.outputSLBStats(parsed, apv.per_pair_slb, args.output)
+                    tg.appendSLBStats(apv.per_pair_slb)
+                except Exception as e:
+                    print(f"[APVSetup] fail to parse SLB stats: {e}")
+                    
             tg.clearEnv()
             tg.disconnect()
-
-            apv.connect()
-            try:
-                apv.collectAndProcessSLBStats(args.output)
-                tg.appendSLBStats(apv.per_pair_slb)
-            except Exception as e:
-                print(f"[APVSetup] 收集 SLB 統計資料失敗: {e}")
             apv.clearEnv()
             apv.disconnect()
             print("================================================================")
