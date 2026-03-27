@@ -144,24 +144,32 @@ class TrafficGenerator:
             pair_indices: List of pair indices to clear, clear all if None
             dry_run: If True, show what would be cleared without executing
         """
-        if pair_indices is None:
-            pair_indices = list(range(self.pair_count))
+        try:
+            if pair_indices is None:
+                pair_indices = list(range(self.pair_count))
 
-        print(f"[TrafficGenerator] Starting environment clearance (Pairs: {pair_indices})...")
+            print(f"[TrafficGenerator] Starting environment clearance (Pairs: {pair_indices})...")
 
-        for i in pair_indices:
-            if i < len(self.pairs):
-                print(f"[TrafficGenerator] Clearing Pair {i} environment...")
-                self.pairs[i].clearEnv(dry_run=dry_run)
-                print(f"[TrafficGenerator] Pair {i} environment cleared")
-            else:
-                print(f"[TrafficGenerator] Warning: Pair {i} does not exist")
+            for i in pair_indices:
+                if i < len(self.pairs):
+                    print(f"[TrafficGenerator] Clearing Pair {i} environment...")
+                    self.pairs[i].clearEnv(dry_run=dry_run)
+                    print(f"[TrafficGenerator] Pair {i} environment cleared")
+                else:
+                    print(f"[TrafficGenerator] Warning: Pair {i} does not exist")
 
-        # APV teardown
-        if not dry_run:
-            self.apv.clearEnv()
+            # APV teardown
+            if not dry_run:
+                try: 
+                    self.apv.clearEnv()
+                except Exception as e:
+                    print(f"[TrafficGenerator] Error occurred while clearing APV environment: {e}")
+                    self.apv.connect()  # Attempt to reconnect APV and clear again
+                    self.apv.clearEnv()
 
-        print("[TrafficGenerator] Environment clearance completed")
+            print("[TrafficGenerator] Environment clearance completed")
+        except Exception as e:
+            print(f"[TrafficGenerator] Error during environment clearance: {e}")
 
     def run_test(self, pair_indices: list|None = None, enable_monitor: bool = True,
                  parallel: bool = False, dry_run: bool = False):
