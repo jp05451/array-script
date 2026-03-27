@@ -424,7 +424,7 @@ class SystemMonitor:
         shell = self._slb_executor
         try:
             ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            print(f"[SLBStatsMonitor] Collecting SLB stats... {ts}")
+            print(f"[SLBStatsMonitor] Collecting SLB stats at {ts}...")
             result = shell.execute_command('show statistics slb all')
             full_output = result[0] if result else ''
             ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -451,7 +451,6 @@ class SystemMonitor:
 
             self._slb_stats_raw.append({'timestamp': ts, 'raw_output': full_output, 'parsed': parsed})
             self._per_pair_slb = per_pair_slb
-            print(f"[SLBStatsMonitor] Collected SLB stats at {ts}")
         except Exception as e:
             print(f"[SLBStatsMonitor] Error collecting SLB stats: {e}")
 
@@ -476,6 +475,13 @@ class SystemMonitor:
         if not self.monitoring:
             print("[SLBStatsMonitor] 監控已停止，跳過採樣")
             return
+        if self._slb_executor is not None:
+            try:
+                self._slb_executor.execute_command('')
+            except Exception: 
+                self._slb_executor.connect()
+                self._enter_slb_enable_mode()
+            self._enter_slb_enable_mode()
         self._do_slb_collection()
         print("[SLBStatsMonitor] 採樣完成，執行緒結束")
 
