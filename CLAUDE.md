@@ -6,6 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 All llm output must use traditional Chinese
 All print and comment must use English
 
+# thinking
+use tradition chinese to think
+
 ## Setup
 
 ```bash
