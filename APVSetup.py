@@ -187,18 +187,21 @@ class APVSetup:
         self.ssh_apv.execute_command(f'{self.apv_enable_password}',real_time=True)
         self.ssh_apv.execute_command('config terminal',real_time=True)
         for i in range(len(self.pairs)):
-            protocol = self.pairs[i].protocol.lower()
-            if protocol == 'udp':
-                print('Clearing UDP')
-                self.setupUDPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
-            elif protocol == 'tcp':
-                print('Clearing TCP')
-                self.setupTCPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
-            elif protocol == 'http':
-                print('Clearing HTTP')
-                self.setupHTTPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
-            else:
-                raise ValueError(f"Unsupported protocol: {protocol}")
+            # protocol = self.pairs[i].protocol.lower()
+            # if protocol == 'udp':
+            #     print('Clearing UDP')
+            #     self.setupUDPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
+            # elif protocol == 'tcp':
+            #     print('Clearing TCP')
+            #     self.setupTCPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
+            # elif protocol == 'http':
+            #     print('Clearing HTTP')
+            #     self.setupHTTPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
+            # else:
+            #     raise ValueError(f"Unsupported protocol: {protocol}")
+            self.setupHTTPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
+            self.setupTCPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
+            self.setupUDPLoadBalancer(pair_index=i,dry_run=dry_run,clear=True)
         self.ssh_apv.execute_command('write memory',real_time=True)
     
     def connect(self):
